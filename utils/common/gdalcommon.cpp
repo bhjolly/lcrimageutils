@@ -504,6 +504,7 @@ int band, xsize, ysize, osize,nlevel;
 GDALRasterBand *hBand;
 char szTemp[64], *pszHistoString;
 float *pSample;
+bool bIgnoreTmp = bIgnore;
 
 /* we calculate a single overview to speed up the calculation of stats */
  
@@ -513,6 +514,15 @@ float *pSample;
 /*    fprintf( stderr, "Band = %d\n", band + 1);*/
   
     hBand = hHandle->GetRasterBand( band + 1 );
+      
+    if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
+    {
+       bIgnore = false;
+    }
+    else
+    {
+       bIgnore = bIgnoreTmp;
+    }
 
     /* we use the largest overview that will still result in */
     /* at least CONTIN_STATS_MIN_LIMIT                       */
@@ -567,9 +577,9 @@ float *pSample;
     }
     else if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
     {
-        nHistBuckets = (ceil(fmax) - floor(fmin))+1;
-        histmin = fmin;
-        histmax = fmax;
+        nHistBuckets = ceil(fmax);
+        histmin = 0;
+        histmax = ceil(fmax);
     }
     else
     {
