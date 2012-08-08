@@ -48,11 +48,11 @@ float ignoreval = 0;
   
   GDALAllRegister();
 
-  /* Open the file */
+  // Open the file 
   GDALDatasetH inds = GDALOpen( argv[1], GA_Update );
   if( inds != NULL )
   {
-    /* calc the stats */
+    // calc the stats 
     if( ignore )
         gdalcommon_calcstatsignore( inds, ignoreval );
     else
