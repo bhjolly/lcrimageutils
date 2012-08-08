@@ -1,6 +1,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
+#include <iostream>
 
 #include "gdal.h"
 #include "cpl_string.h"
@@ -184,6 +186,16 @@ void gdalcommon_calcstatsignore( GDALDatasetH hDataset, double dVal )
   calcstats( (GDALDataset*)hDataset, true, dVal, true );
 }
 
+int StatsTextProgress( double dfComplete, const char *pszMessage, void *pData)
+{
+    if( pszMessage != NULL )
+        printf( "%d%% complete: %s\r", (int) (dfComplete*100), pszMessage );
+    else
+        printf( "%d%% complete.\r", (int) (dfComplete*100) );
+    
+    return TRUE;
+}
+
 
 /* we don't want to build unnecessarily small overview layers  */
 /* we stop when the smallest dimension in the overview is less */
@@ -223,7 +235,8 @@ const char *pszType;
 		pszType = "NEAREST";
 	}
 	
-  handle->BuildOverviews( pszType, nOverviews, nLevels, 0, NULL, NULL, NULL );
+  handle->BuildOverviews( pszType, nOverviews, nLevels, 0, NULL, StatsTextProgress, NULL );
+    std::cout << std::endl;
 }
 
 void getRangeMean(float *pData,int size,float &min,float &max,float &mean, bool ignore, float ignoreVal)
@@ -493,57 +506,39 @@ CPLErr GetHistogramIgnore( GDALRasterBand *pBand, double dfMin, double dfMax,
 }
   
   
-#define HISTO_NBINS 255
+#define HISTO_NBINS 256
 /* the min. number of points to sample to get the stats */
-#define CONTIN_STATS_MIN_LIMIT 1000000
-
 
 void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyramid )
 {
-int band, xsize, ysize, osize,nlevel;
-GDALRasterBand *hBand;
-char szTemp[64], *pszHistoString;
-float *pSample;
-bool bIgnoreTmp = bIgnore;
+    int band;//, xsize, ysize, osize,nlevel;
+    GDALRasterBand *hBand;
+    char szTemp[64], *pszHistoString;
+    std::string histoType;
+    std::string histoTypeDirect = "direct";
+    std::string histoTypeLinear = "linear";
 
 /* we calculate a single overview to speed up the calculation of stats */
  
   int nBands = hHandle->GetRasterCount();
   for( band = 0; band < nBands; band++ )
   {
-/*    fprintf( stderr, "Band = %d\n", band + 1);*/
-  
-    hBand = hHandle->GetRasterBand( band + 1 );
+      std::cout << "Processing band " << band+1 << " of " << nBands << std::endl;
       
-    if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
-    {
-       bIgnore = false;
-    }
-    else
-    {
-       bIgnore = bIgnoreTmp;
-    }
+    hBand = hHandle->GetRasterBand( band + 1 );
 
-    /* we use the largest overview that will still result in */
-    /* at least CONTIN_STATS_MIN_LIMIT                       */
-    /* samples... */
-     
-    xsize = hBand->GetXSize();
-    ysize = hBand->GetYSize();
-    osize = xsize * ysize;
-    nlevel = (int) floor(sqrtf(osize/CONTIN_STATS_MIN_LIMIT));
-    if(nlevel == 0) 
-    {
-      nlevel = 1;
-    }
+      if( bIgnore )
+      {
+          hBand->SetNoDataValue( fIgnoreVal );
+          sprintf( szTemp, "%f", fIgnoreVal );
+          GDALSetMetadataItem( hBand, "STATISTICS_EXCLUDEDVALUES", szTemp, NULL );
+      }
     
-    // sub sample the bands for stats
-    pSample = getSubSampledImage( hBand, nlevel, &osize );
-    
-    /* Find min, Max and mean */ 
-    float fmin=0, fmax=0, fMean;
-    getRangeMean(pSample, osize, fmin, fmax, fMean, bIgnore, fIgnoreVal );
-
+      /* Find min, max, mean and stddev */ 
+      double fmin=0, fmax=0, fMean=0, fStdDev=0;
+      hBand->ComputeStatistics(false, &fmin, &fmax, &fMean, &fStdDev, StatsTextProgress, NULL);
+      std::cout << std::endl;
+      
 	  /* Write Statistics */
   	sprintf( szTemp, "%f", fmin );
   	hBand->SetMetadataItem( "STATISTICS_MINIMUM", szTemp, NULL );
@@ -554,7 +549,6 @@ bool bIgnoreTmp = bIgnore;
  	  sprintf( szTemp, "%f", fMean );
   	hBand->SetMetadataItem( "STATISTICS_MEAN", szTemp, NULL );
 
-    float fStdDev =  getStdDev(pSample, osize, fMean, bIgnore, fIgnoreVal );
  	  sprintf( szTemp, "%f", fStdDev );
   	hBand->SetMetadataItem( "STATISTICS_STDDEV", szTemp, NULL );
    
@@ -567,28 +561,60 @@ bool bIgnoreTmp = bIgnore;
     /* Calc the histogram */
     int *pHisto;
     int nHistBuckets;
-    float histmin = 0, histmax = 0;
-    if( hBand->GetRasterDataType() == GDT_Byte )
-    {
-      /* if it is 8 bit just do a histo on the lot so we don't get rounding errors */ 
-      nHistBuckets = 256;
-      histmin = 0;
-      histmax = 255;
-    }
-    else if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
-    {
-        nHistBuckets = ceil(fmax);
-        histmin = 0;
-        histmax = ceil(fmax);
-    }
-    else
-    {
-      nHistBuckets = HISTO_NBINS;
-      histmin = fmin;
-      histmax = fmax;
-    }
-    pHisto = (int*)calloc(nHistBuckets, sizeof(int));
-    GetHistogramIgnore( hBand, histmin, histmax, nHistBuckets, pHisto, FALSE, bIgnore, fIgnoreVal, GDALDummyProgress, NULL );
+      
+      float histmin = 0, histmax = 0, histminTmp = 0, histmaxTmp = 0;
+      if( hBand->GetRasterDataType() == GDT_Byte )
+      {
+          /* if it is 8 bit just do a histo on the lot so we don't get rounding errors */ 
+          nHistBuckets = 256;
+          histmin = 0;
+          histmax = 255;
+          histminTmp = -0.5;
+          histmaxTmp = 255.5;
+          sprintf( szTemp, "%f", fStdDev );
+          histoType = histoTypeDirect;
+      }
+      else if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
+      {
+          nHistBuckets = ceil(fmax)+1;
+          histmin = 0;
+          histmax = ceil(fmax);
+          histminTmp = -0.5;
+          histmaxTmp = histmax + 0.5;
+          histoType = histoTypeDirect;
+      }
+      else
+      {
+          int range = (ceil(fmax) - floor(fmin));
+          histmin = fmin;
+          histmax = fmax;
+          if(range <= HISTO_NBINS)
+          {
+              nHistBuckets = range;
+              histoType = histoTypeDirect;
+              
+              histminTmp = histmin - 0.5;
+              histmaxTmp = histmax + 0.5;
+          }
+          else
+          {
+              nHistBuckets = HISTO_NBINS;
+              histoType = histoTypeLinear;
+              histminTmp = histmin;
+              histmaxTmp = histmax;
+          }
+      }
+      pHisto = (int*)calloc(nHistBuckets, sizeof(int));
+      if(bIgnore)
+      {
+          GetHistogramIgnore(hBand, histminTmp, histmaxTmp, nHistBuckets, pHisto, false, bIgnore, fIgnoreVal, StatsTextProgress, NULL);
+      }
+      else
+      {
+          hBand->GetHistogram(histminTmp, histmaxTmp, nHistBuckets, pHisto, true, false, StatsTextProgress, NULL);
+      }
+      std::cout << std::endl;
+        
 
     int histoStrLen = nHistBuckets * 8;
     pszHistoString = new char[histoStrLen];
@@ -661,7 +687,7 @@ bool bIgnoreTmp = bIgnore;
     }
     else
     {
-  	  sprintf( szTemp, "%f", fmin );
+  	  sprintf( szTemp, "%f", histmin );
     }
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOMIN", szTemp, NULL );
 
@@ -671,7 +697,7 @@ bool bIgnoreTmp = bIgnore;
     }
     else
     {
-  	  sprintf( szTemp, "%f", fmax );
+  	  sprintf( szTemp, "%f", histmax );
     }
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOMAX", szTemp, NULL );
 
@@ -684,26 +710,15 @@ bool bIgnoreTmp = bIgnore;
      ie Linear for floats, and direct for integer types
      This means Raster Attribute Dialog gets displayed
      correctly in Imagine */
-    if( ( hBand->GetRasterDataType() == GDT_Float32 ) || 
-        ( hBand->GetRasterDataType() == GDT_Float64 ) )
-    {
-        GDALSetMetadataItem( hBand, "STATISTICS_HISTOBINFUNCTION", "linear", NULL );
-    }
-    else
-    {
-        GDALSetMetadataItem( hBand, "STATISTICS_HISTOBINFUNCTION", "direct", NULL );
-    }
-    
-    if( bIgnore )
-    {
-      hBand->SetNoDataValue( fIgnoreVal );
-    }
+    GDALSetMetadataItem( hBand, "STATISTICS_HISTOBINFUNCTION", histoType.c_str(), NULL );
     
     delete pszHistoString;
     free( pHisto );
-    free( pSample );
   }
   if( bPyramid )
+  {
+      std::cout << "Calculating Pyramids:\n";
     addpyramid(hHandle);
+  }
 }
  
