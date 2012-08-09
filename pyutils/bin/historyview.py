@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 try:
   from lcrimageutils import historyview4 as historyview
