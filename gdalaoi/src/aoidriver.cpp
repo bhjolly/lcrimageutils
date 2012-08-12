@@ -5,10 +5,9 @@
 // see http://www.gdal.org/ogr/ogr_drivertut.html
 
 // Must be C callable
-extern "C"
-{
-    void RegisterOGRAOI();
-}
+CPL_C_START
+    void CPL_DLL RegisterOGRAOI();
+CPL_C_END
 
 void RegisterOGRAOI()
 {

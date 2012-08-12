@@ -38,19 +38,30 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ./cmake/modules/)
 ###############################################################################
 # Platform and compiler specific settings
 
-# Recommended C++ compilation flags
-# -Weffc++
-set(GDALUTILS_CXX_FLAGS "-pedantic -Wall -Wpointer-arith -Wcast-align -Wcast-qual -Wredundant-decls -Wno-long-long")
+if(WIN32)
+    if (MSVC)
+        if (MSVC80 OR MSVC90 OR MSVC10)
+            add_definitions(-D_USE_MATH_DEFINES)
+        endif()
+        # by default the compiler produces gratuitous warnings. Disable some of them
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4251")
 
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC ${GDALUTILS_CXX_FLAGS}")
-  if (CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98")
-  endif()
+    endif()
+else()
+    # Recommended C++ compilation flags
+    # -Weffc++
+    set(GDALUTILS_CXX_FLAGS "-pedantic -Wall -Wpointer-arith -Wcast-align -Wcast-qual -Wredundant-decls -Wno-long-long")
 
-elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER}" MATCHES "clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GDALUTILS_CXX_FLAGS}")
-endif()
+    if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC ${GDALUTILS_CXX_FLAGS}")
+        if (CMAKE_COMPILER_IS_GNUCXX)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98")
+        endif()
+
+    elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER}" MATCHES "clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GDALUTILS_CXX_FLAGS}")
+    endif()
+endif(WIN32)
 
 if (APPLE)
   set(SO_EXT dylib)
@@ -63,12 +74,21 @@ endif(APPLE)
 ###############################################################################
 
 include_directories(${GDAL_INCLUDE_DIR} ${GDAL_HFA_SRC_PATH})
-set(GDAL_LIBRARIES -L${GDAL_LIB_PATH} -lgdal)
+if (WIN32)
+  set(GDAL_LIBRARIES -LIBPATH:"${GDAL_LIB_PATH}" gdal_i.lib)
+else()
+  set(GDAL_LIBRARIES -L${GDAL_LIB_PATH} -lgdal)
+endif(WIN32)
 
 ###############################################################################
 # Build library
 
 set(GDALAOI_SRCS ${PROJECT_SOURCE_DIR}/aoidatasource.cpp ${PROJECT_SOURCE_DIR}/aoidriver.cpp ${PROJECT_SOURCE_DIR}/aoilayer.cpp ${PROJECT_SOURCE_DIR}/aoiproj.cpp)
+
+if (WIN32)
+    # add the gdal source files - these aren't exported on Windows so we need to compile them in
+    set(GDALAOI_SRCS "${GDALAOI_SRCS}" ${GDAL_HFA_SRC_PATH}/hfadictionary.cpp ${GDAL_HFA_SRC_PATH}/hfaentry.cpp ${GDAL_HFA_SRC_PATH}/hfadataset.cpp ${GDAL_HFA_SRC_PATH}/hfatype.cpp ${GDAL_HFA_SRC_PATH}/hfafield.cpp ${GDAL_HFA_SRC_PATH}/hfaband.cpp ${GDAL_HFA_SRC_PATH}/hfacompress.cpp ${GDAL_HFA_SRC_PATH}/hfaopen.cpp)
+endif(WIN32)
 
 add_library( ${GDALAOI_LIB_NAME} ${GDALAOI_SRCS})
 
