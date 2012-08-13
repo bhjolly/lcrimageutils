@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+#include <ctime>
 
 #include "gdal.h"
 #include "cpl_string.h"
@@ -712,6 +713,28 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
      correctly in Imagine */
     GDALSetMetadataItem( hBand, "STATISTICS_HISTOBINFUNCTION", histoType.c_str(), NULL );
     
+    if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
+    {
+        GDALColorTable *clrTab = hBand->GetColorTable();
+        if(clrTab == NULL)
+        {
+            std::cout << "Adding a Colour table\n";
+            clrTab = new GDALColorTable();
+            GDALColorEntry *clr = NULL;
+            srand(time(NULL));
+            for(size_t i = 0; i < histmax; ++i)
+            {
+                clr = new GDALColorEntry();
+                clr->c1 = rand() % 255 + 1;
+                clr->c2 = rand() % 255 + 1;
+                clr->c3 = rand() % 255 + 1;
+                clr->c4 = 255;
+                clrTab->SetColorEntry(i, clr);
+            }
+            hBand->SetColorTable(clrTab);
+        }
+    }
+      
     delete pszHistoString;
     free( pHisto );
   }
