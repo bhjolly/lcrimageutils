@@ -703,7 +703,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOMAX", szTemp, NULL );
 
   	sprintf( szTemp, "%d", nHistBuckets );
-	  GDALSetMetadataItem( hBand, "STATISTICS_HISTONUMBINS", szTemp, NULL );
+    GDALSetMetadataItem( hBand, "STATISTICS_HISTONUMBINS", szTemp, NULL );
 
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOBINVALUES", pszHistoString, NULL );
     
@@ -722,7 +722,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
             clrTab = new GDALColorTable();
             GDALColorEntry *clr = NULL;
             srand(time(NULL));
-            for(size_t i = 0; i < histmax; ++i)
+            for(size_t i = 0; i < nHistBuckets; ++i)
             {
                 clr = new GDALColorEntry();
                 clr->c1 = rand() % 255 + 1;
