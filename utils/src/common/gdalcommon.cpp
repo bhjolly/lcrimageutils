@@ -720,18 +720,18 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
         {
             std::cout << "Adding a Colour table\n";
             clrTab = new GDALColorTable();
-            GDALColorEntry *clr = NULL;
+            GDALColorEntry clr;
+            clr.c4 = 255;
             srand(time(NULL));
-            for(size_t i = 0; i < nHistBuckets; ++i)
+            for(int i = 0; i < nHistBuckets; ++i)
             {
-                clr = new GDALColorEntry();
-                clr->c1 = rand() % 255 + 1;
-                clr->c2 = rand() % 255 + 1;
-                clr->c3 = rand() % 255 + 1;
-                clr->c4 = 255;
-                clrTab->SetColorEntry(i, clr);
+                clr.c1 = rand() % 255 + 1;
+                clr.c2 = rand() % 255 + 1;
+                clr.c3 = rand() % 255 + 1;
+                clrTab->SetColorEntry(i, &clr);
             }
             hBand->SetColorTable(clrTab);
+            delete clrTab;
         }
     }
       
