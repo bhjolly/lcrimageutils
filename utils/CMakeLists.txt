@@ -114,6 +114,8 @@ set(GDAL_LIBRARIES -L${GDAL_LIB_PATH} -lgdal)
 add_library( ${GDALUTILS_COMMON_LIB_NAME} ${PROJECT_SOURCE_DIR}/common/gdalcommon.cpp ${PROJECT_SOURCE_DIR}/common/gdalcommon_cpp.cpp ${PROJECT_SOURCE_DIR}/common/histogram.cpp ${PROJECT_SOURCE_DIR}/common/inv_dist_weighting.c ${PROJECT_SOURCE_DIR}/common/glayer.c ${PROJECT_SOURCE_DIR}/common/gutils.c ${PROJECT_SOURCE_DIR}/common/ginfo.h ${PROJECT_SOURCE_DIR}/common/fparse.c )
 target_link_libraries(${GDALUTILS_COMMON_LIB_NAME} ${GDAL_LIBRARIES} )
 install (TARGETS ${GDALUTILS_COMMON_LIB_NAME} DESTINATION lib)
+set(GDALCOMMON_INCLUDE_FILES ${PROJECT_SOURCE_DIR}/common/gdalcommon.h ${PROJECT_SOURCE_DIR}/common/gdalcommon_cpp.h ${PROJECT_SOURCE_DIR}/common/fparse.h ${PROJECT_SOURCE_DIR}/common/ginfo.h ${PROJECT_SOURCE_DIR}/common/glayer.h ${PROJECT_SOURCE_DIR}/common/gutils.h ${PROJECT_SOURCE_DIR}/common/histogram.h)
+install (FILES ${GDALCOMMON_INCLUDE_FILES} DESTINATION include)
 include_directories ("${PROJECT_SOURCE_DIR}/common")
 
 if(GDALCALSTATS)
