@@ -519,7 +519,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
     std::string histoTypeDirect = "direct";
     std::string histoTypeLinear = "linear";
 
-/* we calculate a single overview to speed up the calculation of stats */
+  /* we calculate a single stats on full res - maybe we should use overviews for large datasets */
  
   int nBands = hHandle->GetRasterCount();
   for( band = 0; band < nBands; band++ )
@@ -552,6 +552,10 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
 
  	  sprintf( szTemp, "%f", fStdDev );
   	hBand->SetMetadataItem( "STATISTICS_STDDEV", szTemp, NULL );
+
+    /* as we calculated on full res - these are the default anyway */
+    hBand->SetMetadataItem( "STATISTICS_SKIPFACTORX", "1", NULL );
+    hBand->SetMetadataItem( "STATISTICS_SKIPFACTORY", "1", NULL );
    
     /* make sure that the histogram will work even if there */
     /* is only one value in it                              */
