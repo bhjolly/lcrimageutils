@@ -1,0 +1,45 @@
+--- frmts/hfa/hfaopen.cpp.prehisto	2012-08-10 17:07:04.073405504 +1200
++++ frmts/hfa/hfaopen.cpp	2012-08-10 17:08:41.918719318 +1200
+@@ -2852,6 +2852,42 @@
+                 }
+             }
+         }
++        else if ( poEntry != NULL )
++        {
++            // In this case, there are HistogramParameters present, but we did not
++            // create them. However, we might be modifying them, in the case where 
++            // the data has changed and the histogram counts need to be updated. It could 
++            // be worse than that, but that is all we are going to cope with for now. 
++            // We are assuming that we did not change any of the other stuff, like 
++            // skip factors and so forth. The main need for this case is for programs
++            // (such as Imagine itself) which will happily modify the pixel values
++            // without re-calculating the histogram counts. 
++            int nNumBins = poEntry->GetIntField( "BinFunction.numBins" );
++            HFAEntry *poEntryDescrTbl = poNode->GetNamedChild( "Descriptor_Table" );
++            HFAEntry *poHisto = NULL;
++            if ( poEntryDescrTbl != NULL) {
++                poHisto = poEntryDescrTbl->GetNamedChild( "Histogram" );
++            }
++            if ( poHisto != NULL ) {
++                int nOffset = poHisto->GetIntField( "columnDataPtr" );
++                // write out histogram data
++                char * pszWork = pszBinValues;
++                for ( int nBin = 0; nBin < nNumBins; ++nBin )
++                {
++                    char * pszEnd = strchr( pszWork, '|' );
++                    if ( pszEnd != NULL )
++                    {
++                        *pszEnd = 0;
++                        VSIFSeekL( hHFA->fp, nOffset + 4*nBin, SEEK_SET );
++                        int nValue = atoi( pszWork );
++                        HFAStandard( 4, &nValue );
++
++                        VSIFWriteL( (void *)&nValue, 1, 4, hHFA->fp );
++                        pszWork = pszEnd + 1;
++                    }
++                }
++            }
++        }
+         free( pszBinValues );
+     }
+ 
