@@ -189,11 +189,17 @@ void gdalcommon_calcstatsignore( GDALDatasetH hDataset, double dVal )
 
 int StatsTextProgress( double dfComplete, const char *pszMessage, void *pData)
 {
-    if( pszMessage != NULL )
-        printf( "%d%% complete: %s\r", (int) (dfComplete*100), pszMessage );
-    else
-        printf( "%d%% complete.\r", (int) (dfComplete*100) );
-    
+    int nPercent = int(dfComplete*100);
+    int *pnLastComplete = (int*)pData;
+    if( nPercent != *pnLastComplete )
+    {
+        if( pszMessage != NULL )
+            printf( "%d%% complete: %s\r", nPercent, pszMessage );
+        else
+            printf( "%d%% complete.\r", nPercent );
+
+        *pnLastComplete = nPercent;
+    }
     return TRUE;
 }
 
@@ -215,6 +221,7 @@ int nLevels[] = { 4, 8, 16, 32, 64, 128, 256, 512 };
 int nOverviews,mindim,i;
 GDALRasterBand *hBand;
 const char *pszType;
+int nLastProgress = -1;
 
 /* first we work out how many overviews to build based on the size */
  mindim = handle->GetRasterXSize() < handle->GetRasterYSize() ? handle->GetRasterXSize() : handle->GetRasterYSize();
@@ -236,7 +243,7 @@ const char *pszType;
 		pszType = "NEAREST";
 	}
 	
-  handle->BuildOverviews( pszType, nOverviews, nLevels, 0, NULL, StatsTextProgress, NULL );
+  handle->BuildOverviews( pszType, nOverviews, nLevels, 0, NULL, StatsTextProgress, &nLastProgress );
     std::cout << std::endl;
 }
 
@@ -349,6 +356,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
     std::string histoTypeDirect = "direct";
     std::string histoTypeLinear = "linear";
     char szTemp[MAX_TEMP_STRING];
+    int nLastProgress;
 
   /* we calculate a single stats on full res - maybe we should use overviews for large datasets */
  
@@ -368,7 +376,8 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
     
       /* Find min, max, mean and stddev */ 
       double fmin=0, fmax=0, fMean=0, fStdDev=0;
-      hBand->ComputeStatistics(false, &fmin, &fmax, &fMean, &fStdDev, StatsTextProgress, NULL);
+      nLastProgress = -1;
+      hBand->ComputeStatistics(false, &fmin, &fmax, &fMean, &fStdDev, StatsTextProgress, &nLastProgress);
       std::cout << std::endl;
       
 	  /* Write Statistics */
@@ -443,7 +452,8 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
       pHisto = (int*)calloc(nHistBuckets, sizeof(int));
       // the patch 005_histoignore.patch means that ignore values are ignored
       // (if set) in calculation of histogram
-      hBand->GetHistogram(histminTmp, histmaxTmp, nHistBuckets, pHisto, true, false, StatsTextProgress, NULL);
+      nLastProgress = -1;
+      hBand->GetHistogram(histminTmp, histmaxTmp, nHistBuckets, pHisto, true, false, StatsTextProgress, &nLastProgress);
       std::cout << std::endl;
         
     /* Mode is the bin with the highest count */
