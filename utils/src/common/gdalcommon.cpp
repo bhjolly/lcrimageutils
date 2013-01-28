@@ -339,14 +339,16 @@ float *pData;
 #define HISTO_NBINS 256
 /* the min. number of points to sample to get the stats */
 
+#define MAX_TEMP_STRING 64
+
 void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyramid )
 {
     int band;//, xsize, ysize, osize,nlevel;
     GDALRasterBand *hBand;
-    char szTemp[64], *pszHistoString;
     std::string histoType;
     std::string histoTypeDirect = "direct";
     std::string histoTypeLinear = "linear";
+    char szTemp[MAX_TEMP_STRING];
 
   /* we calculate a single stats on full res - maybe we should use overviews for large datasets */
  
@@ -355,12 +357,12 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
   {
       std::cout << "Processing band " << band+1 << " of " << nBands << std::endl;
       
-    hBand = hHandle->GetRasterBand( band + 1 );
+      hBand = hHandle->GetRasterBand( band + 1 );
 
       if( bIgnore )
       {
           hBand->SetNoDataValue( fIgnoreVal );
-          sprintf( szTemp, "%f", fIgnoreVal );
+          snprintf( szTemp, MAX_TEMP_STRING, "%f", fIgnoreVal );
           GDALSetMetadataItem( hBand, "STATISTICS_EXCLUDEDVALUES", szTemp, NULL );
       }
     
@@ -370,16 +372,16 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
       std::cout << std::endl;
       
 	  /* Write Statistics */
-  	sprintf( szTemp, "%f", fmin );
+  	snprintf( szTemp, MAX_TEMP_STRING, "%f", fmin );
   	hBand->SetMetadataItem( "STATISTICS_MINIMUM", szTemp, NULL );
 
-	  sprintf( szTemp, "%f", fmax );
+    snprintf( szTemp, MAX_TEMP_STRING, "%f", fmax );
   	hBand->SetMetadataItem( "STATISTICS_MAXIMUM", szTemp, NULL );
 
- 	  sprintf( szTemp, "%f", fMean );
+ 	snprintf( szTemp, MAX_TEMP_STRING, "%f", fMean );
   	hBand->SetMetadataItem( "STATISTICS_MEAN", szTemp, NULL );
 
- 	  sprintf( szTemp, "%f", fStdDev );
+ 	snprintf( szTemp, MAX_TEMP_STRING, "%f", fStdDev );
   	hBand->SetMetadataItem( "STATISTICS_STDDEV", szTemp, NULL );
 
     /* as we calculated on full res - these are the default anyway */
@@ -405,7 +407,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
           histmax = 255;
           histminTmp = -0.5;
           histmaxTmp = 255.5;
-          sprintf( szTemp, "%f", fStdDev );
+          snprintf( szTemp, MAX_TEMP_STRING, "%f", fStdDev );
           histoType = histoTypeDirect;
       }
       else if(strcmp( hBand->GetMetadataItem( "LAYER_TYPE", "" ), "thematic" ) == 0)
@@ -444,53 +446,56 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
       hBand->GetHistogram(histminTmp, histmaxTmp, nHistBuckets, pHisto, true, false, StatsTextProgress, NULL);
       std::cout << std::endl;
         
-
-    int histoStrLen = nHistBuckets * 8;
-    pszHistoString = new char[histoStrLen];
-    pszHistoString[0] = '\0';
-    
     /* Mode is the bin with the highest count */
     int maxcount = 0;
     int maxbin = 0;
     long totalvalues = 0;
+    int nTotalSizeStringBinValues = 0;
     for( int count = 0; count < nHistBuckets; count++ )
     {
-      if( pHisto[count] > maxcount )
-      {
-        maxcount = pHisto[count];
-        maxbin = count;
-      }
-      totalvalues += pHisto[count];
+        if( pHisto[count] > maxcount )
+        {
+            maxcount = pHisto[count];
+            maxbin = count;
+        }
+        totalvalues += pHisto[count];
+
+        /* Work out the size needed for the histogram string */
+        /* by adding together the size needed for each bin */
+        nTotalSizeStringBinValues += snprintf(NULL, 0, "%d|", pHisto[count] );
     }
     float fMode = maxbin * ((histmax-histmin) / nHistBuckets);
     
     if( ( hBand->GetRasterDataType( ) == GDT_Float32 ) || 
       ( hBand->GetRasterDataType( ) == GDT_Float64 ) )
     {
-  	  sprintf( szTemp, "%f", fMode );
+  	    snprintf( szTemp, MAX_TEMP_STRING, "%f", fMode );
     }
     else
     {
-  	  sprintf( szTemp, "%f", floor(fMode+0.5) );
+  	    snprintf( szTemp, MAX_TEMP_STRING, "%f", floor(fMode+0.5) );
     }  
   	GDALSetMetadataItem( hBand, "STATISTICS_MODE", szTemp, NULL );
 
+    /* Allocate space for histogram string */
+    char *pszHistoString = new char[nTotalSizeStringBinValues + 1];
+    int nHistoStringCurrentIdx = 0;
+
     int nWhichMedian = -1;
     int nCumSum = 0;
-	  for( int count = 0; count < nHistBuckets; count++ )
+    for( int count = 0; count < nHistBuckets; count++ )
   	{
 	    /* we also estimate the median based on the histogram */
 	    if(nWhichMedian == -1) 
-      {
-	      /* then haven't found the median yet */
-  	    nCumSum += pHisto[count];
-	      if(nCumSum > (totalvalues/2.0)) 
         {
-	        nWhichMedian = count;
-        }
+	        /* then haven't found the median yet */
+  	        nCumSum += pHisto[count];
+	        if(nCumSum > (totalvalues/2.0)) 
+            {
+	            nWhichMedian = count;
+            }
 	    }
-	    sprintf( szTemp, "%d|", pHisto[count] );
-	    strcat( pszHistoString, szTemp );
+	    nHistoStringCurrentIdx += sprintf( &pszHistoString[nHistoStringCurrentIdx], "%d|", pHisto[count] );
   	}
    
     float fMedian = nWhichMedian * ((histmax-histmin) / nHistBuckets);
@@ -502,35 +507,35 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
     if( ( GDALGetRasterDataType( hBand ) == GDT_Float32 ) || 
       ( GDALGetRasterDataType( hBand ) == GDT_Float64 ) )
     {
-    	sprintf( szTemp, "%f", fMedian );
+    	snprintf( szTemp, MAX_TEMP_STRING, "%f", fMedian );
     }
     else
     {
-    	sprintf( szTemp, "%f", floor(fMedian+0.5) );
+    	snprintf( szTemp, MAX_TEMP_STRING, "%f", floor(fMedian+0.5) );
     }
 	  GDALSetMetadataItem( hBand, "STATISTICS_MEDIAN", szTemp, NULL );
 
     if( GDALGetRasterDataType( hBand ) == GDT_Byte )
     {
-  	  sprintf( szTemp, "0" );
+  	  snprintf( szTemp, MAX_TEMP_STRING, "0" );
     }
     else
     {
-  	  sprintf( szTemp, "%f", histmin );
+  	  snprintf( szTemp, MAX_TEMP_STRING, "%f", histmin );
     }
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOMIN", szTemp, NULL );
 
     if( GDALGetRasterDataType( hBand ) == GDT_Byte )
     {
-  	  sprintf( szTemp, "255" );
+  	  snprintf( szTemp, MAX_TEMP_STRING, "255" );
     }
     else
     {
-  	  sprintf( szTemp, "%f", histmax );
+  	  snprintf( szTemp, MAX_TEMP_STRING, "%f", histmax );
     }
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOMAX", szTemp, NULL );
 
-  	sprintf( szTemp, "%d", nHistBuckets );
+  	snprintf( szTemp, MAX_TEMP_STRING, "%d", nHistBuckets );
     GDALSetMetadataItem( hBand, "STATISTICS_HISTONUMBINS", szTemp, NULL );
 
   	GDALSetMetadataItem( hBand, "STATISTICS_HISTOBINVALUES", pszHistoString, NULL );
