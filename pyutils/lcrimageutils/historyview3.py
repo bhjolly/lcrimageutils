@@ -118,7 +118,7 @@ def run():
   Main part of program - displays window.
   """
   if len(sys.argv) != 2:
-    raise SystemExit, "usage: historyview.py filename"
+    raise SystemExit("usage: historyview.py filename")
   
   filename = sys.argv[1]
 
