@@ -1,0 +1,15 @@
+--- frmts/hfa/hfafield.cpp.orig	2013-05-08 12:01:21.688369032 +1200
++++ frmts/hfa/hfafield.cpp	2013-05-08 12:01:49.903580695 +1200
+@@ -722,6 +722,12 @@
+                 HFAStandard( 8, &dfNumber ); 
+                 memcpy( pabyData + 12 + nIndexValue * 8, &dfNumber, 8 ); 
+             }
++            else if (nBaseItemType == EPT_u8)
++            {
++                // I have no idea what the correct hungarian prefix should be
++                unsigned char nNumber = (unsigned char)dfDoubleValue;
++                memcpy( pabyData + 12 + nIndexValue, &nNumber, 1);
++            }
+             else
+             {
+                 CPLError( CE_Failure, CPLE_AppDefined, 
