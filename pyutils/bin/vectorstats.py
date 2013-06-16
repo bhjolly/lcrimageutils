@@ -15,6 +15,11 @@ class CmdArgs(object):
                     help="path to vector file")
         self.parser.add_option('-r', '--raster', dest='raster',
                     help="path to raster file")
+        self.parser.add_option('-i', '--ignore', dest='ignore',
+                    help="either: 'int' to use internal nodata values\n"+
+                        "or 'none' to use all values, or a single value"+
+                        " to use for all bands, or a comma seperated list"+
+                        " of values - one per band.")
         self.parser.add_option('-l', '--layer', dest='layer',
                     default=0, type='int', 
                     help="Name or 0-based index of vector layer. Defaults"+
@@ -37,8 +42,9 @@ class CmdArgs(object):
 if __name__ == '__main__':
     cmdargs = CmdArgs()
 
-    if cmdargs.vector is None or cmdargs.raster is None:
-        raise SystemExit('Must specify raster and vector at least')
+    if (cmdargs.vector is None or cmdargs.raster is None or 
+            cmdargs.ignore is None):
+        raise SystemExit('Must specify raster, vector and ignore at least')
 
     bands = None
     if cmdargs.bands is not None:
@@ -46,7 +52,20 @@ if __name__ == '__main__':
         bands = cmdargs.bands.split(',')
         bands = [int(x) for x in bands]
 
-    results = vectorstats.doStats(cmdargs.vector, cmdargs.raster, cmdargs.sql, 
+    ignore_values = None
+    if cmdargs.ignore == 'int':
+        ignore_behaviour = vectorstats.IGNORE_INTERNAL
+    elif cmdargs.ignore == 'none':
+        ignore_behaviour = vectorstats.IGNORE_NONE
+    else:
+        ignore_behaviour = vectorstats.IGNORE_VALUES
+        ignore_values = cmdargs.ignore.split(',')
+        ignore_values = [float(x) for x in ignore_values]
+        if len(ignore_values) == 1:
+            ignore_values = ignore_values[0]
+
+    results = vectorstats.doStats(cmdargs.vector, cmdargs.raster, 
+                    ignore_behaviour, ignore_values, cmdargs.sql, 
                     cmdargs.alltouched, bands, cmdargs.layer)
 
     for band in sorted(results.keys()):
