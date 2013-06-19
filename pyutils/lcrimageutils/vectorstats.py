@@ -190,6 +190,6 @@ def doStats(vector, raster, ignore_behaviour, ignore_values=None,
             stats['min'] = data.min()
             stats['max'] = data.max()
             stats['count'] = data.size
-            results[band] = stats
+            results[int(band)] = stats # make sure not a numpy type
 
     return results
