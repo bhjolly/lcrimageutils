@@ -109,7 +109,6 @@ def calcWorkingExtent(vector, raster, layer):
                     roundToRasterGridX(rastertransform, extent[1], ROUND_UP),
                     roundToRasterGridX(rastertransform, extent[2], ROUND_DOWN),
                     roundToRasterGridX(rastertransform, extent[3], ROUND_UP))
-    print(roundedextent)
 
     pixgrid = pixelgrid.PixelGridDefn(projection=rasterproj, xMin=roundedextent[0],
                         xMax=roundedextent[1], yMin=roundedextent[2],
