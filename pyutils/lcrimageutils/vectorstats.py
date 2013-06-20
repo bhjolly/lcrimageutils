@@ -82,6 +82,8 @@ def calcWorkingExtent(vector, raster, layer):
     based on rasters
     """
     vectords = ogr.Open(vector)
+    if vectords is None:
+        raise IOError('Unable to read vector file %s' % vector)
     vectorlyr = vectords.GetLayer(layer)
 
     vectorsr = vectorlyr.GetSpatialRef()
@@ -90,6 +92,8 @@ def calcWorkingExtent(vector, raster, layer):
     
 
     rasterds = gdal.Open(raster)
+    if rasterds is None:
+        raise IOError('Unable to read raster file %s' % raster)
     rasterproj = rasterds.GetProjection()
     if rasterproj is None or rasterproj == '':
         raise ValueError('Raster must have projection set')
