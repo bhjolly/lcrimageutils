@@ -116,6 +116,8 @@ GlayerWriteLayer(Glayer *glayer, char *fname, int band)
     }
   else if(!strcmp(fextn(fname),".tif"))
     sprintf(driver, "GTiff");
+  else if(!strcmp(fextn(fname),".kea"))
+    sprintf(driver, "KEA");
   else
     errexit(outerr,"unsupported file extension");
 
