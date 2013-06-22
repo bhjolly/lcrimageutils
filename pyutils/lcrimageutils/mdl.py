@@ -9,7 +9,12 @@ Imagine Spatial Modeller, but are not native to pymodeller/numpy.
 import sys
 import numpy
 from scipy.ndimage import label
-from scipy import weave
+try:
+    from scipy import weave
+except ImportError:
+    # not available under Python 3
+    # ignore until I get around to re-writing in numba.
+    pass
 
 class MdlFuncError(Exception):
     pass
