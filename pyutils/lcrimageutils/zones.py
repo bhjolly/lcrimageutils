@@ -132,8 +132,8 @@ def zoneMajority(clumpFile, dataFile, clumpBand=1, dataBands=None):
     The histogram is a dictionary, keyed on the clump id. Each value
     in the dictionary is itself a dictionary keyed on the data value,
     with the count of that value.
-    If dataBands is a single integer, returns a tuple with mean and
-    standard deviation arrays as above.
+    If dataBands is a single integer, returns a tuple with the mode array and
+    histogram dictionary as above.
     """
 
     origdataBands = dataBands # so we know whether to return list or tuple
