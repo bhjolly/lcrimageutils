@@ -124,8 +124,15 @@ def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None,
         counts = numpy.zeros((maxidx,), numpy.integer)
         counts[idxs] = numpy.fromiter(countDict.values(), numpy.integer)
 
+        # mask out invalid divides
+        outInvalid = counts == 0
+        counts[outInvalid] = 1
+
         means = sums / counts
         stds = numpy.sqrt((sumsqs / counts) - (means * means))
+
+        means[outInvalid] = 0
+        stds[outInvalid] = 0
         
         resultList.append((means, stds))
             
