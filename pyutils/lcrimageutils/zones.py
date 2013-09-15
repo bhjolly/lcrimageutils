@@ -7,7 +7,8 @@ Collection of routines that deals with zones
 import numpy
 from rios.imagereader import ImageReader
 
-def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None):
+def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None, 
+                    ignoreDataVals=None):
     """
     Given a file of clumps and a file of data, calculates
     the mean and standard deviation for the area of each
@@ -21,6 +22,10 @@ def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None):
     for each clump id, zero for other indices.
     If dataBands is a single integer, returns a tuple with mean and
     standard deviation arrays as above.
+
+    Ignore values(s) may be passed in with the ignoreDataVals parameter.
+    This may be a single value in which case the same is used for all 
+    dataBands, or a sequence the same length as dataValues.
     """
     
     fileDict = {'clumps':clumpFile, 'data':dataFile}
@@ -28,7 +33,11 @@ def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None):
     origdataBands = dataBands # so we know whether to return list or tuple
     if isinstance(dataBands, int):
         dataBands = [dataBands] # treat as list for now
-    
+
+    if isinstance(ignoreDataVals, int):
+        # make list same size as dataBands
+        ignoreDataVals = [ignoreDataVals] * len(dataBands)
+
     # use dictionaries for accumulated values
     # index is the clump id
     # we have a list of these dictionaries one per dataBand
@@ -58,7 +67,7 @@ def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None):
                 sumsqDictList.append({})
                 countDictList.append({})
 
-        for dataBand in dataBands:
+        for idx, dataBand in enumerate(dataBands):
 
             data = blocks['data'][dataBand-1].flatten()
             sumDict = sumDictList[dataBand-1]
@@ -68,7 +77,13 @@ def zoneMeans(clumpFile, dataFile, clumpBand=1, dataBands=None):
             # for each clump id
             for value in numpy.unique(clumps):
                 # get the data for that clump
-                dataSubset = data.compress(clumps == value)
+                mask = (clumps == value)
+
+                # if we are ignoring values then extend mask
+                if ignoreDataVals is not None:
+                    mask = mask & (data != ignoreDataVals[idx])
+
+                dataSubset = data.compress(mask)
                 # check we have data
                 if dataSubset.size != 0:
                     # calculate the values
