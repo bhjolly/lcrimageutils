@@ -189,21 +189,22 @@ protected:
 
 void printUsage()
 {
-  fprintf( stderr, "usage: infile outfile --size|--id|--both\n" );
+  fprintf( stderr, "usage: infile outfile driver --size|--id|--both\n" );
   exit(1);
 }
 
 int main(int argc,char *argv[])
 {
 
-  if( argc != 4 )
+  if( argc != 5 )
   {
     printUsage();
   }
 
   char *pszInFile = argv[1];
   char *pszOutFile = argv[2];
-  char *pszType = argv[3];
+  char *pszDriver = argv[3];
+  char *pszType = argv[4];
   
   EClumpType type = eBySize;
   if( strcasecmp( pszType, "--size" ) == 0 )
@@ -226,16 +227,21 @@ int main(int argc,char *argv[])
   GDALAllRegister();
 
   GDALDataset *pInDataset = (GDALDataset *) GDALOpen( pszInFile, GA_ReadOnly );
+  if( pInDataset == NULL )
+  {
+    fprintf( stderr, "cannot open %s\n", pszInFile);
+    exit(1);
+  }
 
   GDALRasterBand *pInBand = pInDataset->GetRasterBand(1);
 
   int xsize = pInBand->GetXSize();
   int ysize = pInBand->GetYSize();
-  
+
   CMemRaster<GByte> inRaster(xsize,ysize);
   pInBand->RasterIO( GF_Read, 0, 0, xsize, ysize, inRaster.getRaster(), 
                         xsize, ysize, GDT_Byte, 0, 0 );
-  
+
   CClump<GByte> clump(&inRaster);
   
   clump.clump( type );
@@ -246,13 +252,23 @@ int main(int argc,char *argv[])
   {
     nBands = 2;
   }
-  GDALDataset *pOutDataset = (GDALDataset *)gdalcommon_newfile_templ((GDALDatasetH)pInDataset,pszOutFile,0,0,nBands,GDT_UInt32);
+
+  GDALDriver *pOutDriver = GetGDALDriverManager()->GetDriverByName(pszDriver);
+  if( pOutDriver == NULL )
+  {
+    fprintf(stderr, "Cannot find driver for %s\n", pszDriver);
+    exit(1);
+  }
+
+  char **papszOptions = NULL;
+  GDALDataset *pOutDataset = pOutDriver->Create(pszOutFile, xsize, ysize, nBands, GDT_UInt32, papszOptions);
   if( pOutDataset == NULL )
   {
     fprintf( stderr, "Cannot open %s\n", pszOutFile );
     exit(1);
   }
   
+
   delete pInDataset;
   pInDataset = NULL;
 
@@ -280,12 +296,11 @@ int main(int argc,char *argv[])
   }
   
 
+  gdalcommon_calcstats( pOutDataset );
+
   delete pOutDataset;
   pOutDataset = NULL;
 
-	fprintf( stderr, "Calculating Statistics...\n" );
-
-  gdalcommon_calcstats( pszOutFile );
 
   return 0;
 }

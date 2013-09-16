@@ -218,6 +218,11 @@ public:
     m_xsize = xsize;
     m_ysize = ysize;
     m_pRaster = static_cast<T*>(calloc( xsize * ysize, sizeof(T) ));
+    if( m_pRaster == NULL )
+    {
+      fprintf( stderr, "calloc failed\n" );
+      exit(1);
+    }
   }
   
   ~CMemRaster()
