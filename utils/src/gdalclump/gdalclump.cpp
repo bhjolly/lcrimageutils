@@ -267,7 +267,13 @@ int main(int argc,char *argv[])
     fprintf( stderr, "Cannot open %s\n", pszOutFile );
     exit(1);
   }
-  
+
+  // copy proj etc
+  const char *pszProj = pInDataset->GetProjectionRef();
+  pOutDataset->SetProjection(pszProj);
+  double adfTrans[6];
+  pInDataset->GetGeoTransform(adfTrans);
+  pOutDataset->SetGeoTransform(adfTrans);
 
   delete pInDataset;
   pInDataset = NULL;
