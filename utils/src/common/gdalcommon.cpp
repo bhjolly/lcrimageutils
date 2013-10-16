@@ -433,7 +433,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
           int range = (ceil(fmax) - floor(fmin));
           histmin = fmin;
           histmax = fmax;
-          if(range <= HISTO_NBINS)
+          if((range > 0) && (range <= HISTO_NBINS))
           {
               nHistBuckets = range;
               histoType = histoTypeDirect;
