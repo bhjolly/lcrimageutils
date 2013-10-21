@@ -1,0 +1,28 @@
+--- frmts/hfa/hfaband.cpp.orig	2013-05-08 12:10:00.866027535 +1200
++++ frmts/hfa/hfaband.cpp	2013-07-05 13:50:06.477395332 +1200
+@@ -2057,6 +2057,16 @@
+ 	    return -1;
+ 	}
+     }
++/* -------------------------------------------------------------------- */
++/*      Are we compressed? If so, overview should be too                */
++/*      Check RasterDMS like HFAGetBandInfo                             */
++/* -------------------------------------------------------------------- */
++
++    int nCompressionType = 0;
++    HFAEntry *poDMS = poNode->GetNamedChild( "RasterDMS" );
++
++    if( poDMS != NULL )
++        nCompressionType = poDMS->GetIntField( "compressionType" );
+ 
+ /* -------------------------------------------------------------------- */
+ /*      Create the layer.                                               */
+@@ -2064,7 +2074,7 @@
+     osLayerName.Printf( "_ss_%d_", nOverviewLevel );
+ 
+     if( !HFACreateLayer( psRRDInfo, poParent, osLayerName, 
+-                         TRUE, 64, FALSE, bCreateLargeRaster, FALSE,
++                         TRUE, 64, nCompressionType, bCreateLargeRaster, FALSE,
+                          nOXSize, nOYSize, nOverviewDataType, NULL,
+                          nValidFlagsOffset, nDataOffset, 1, 0 ) )
+         return -1;

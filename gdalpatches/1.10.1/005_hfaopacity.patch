@@ -1,0 +1,11 @@
+--- frmts/hfa/hfadataset.cpp.orig	2013-08-27 09:25:44.244778497 +1200
++++ frmts/hfa/hfadataset.cpp	2013-08-27 09:26:07.264136204 +1200
+@@ -1600,7 +1600,7 @@
+             eType = GFU_Green;
+         else if( EQUAL(poDTChild->GetName(),"Blue") )
+             eType = GFU_Blue;
+-        else if( EQUAL(poDTChild->GetName(),"Alpha") )
++        else if( EQUAL(poDTChild->GetName(),"Alpha") || EQUAL(poDTChild->GetName(),"Opacity") )
+             eType = GFU_Alpha;
+         else if( EQUAL(poDTChild->GetName(),"Class_Names") )
+             eType = GFU_Name;
