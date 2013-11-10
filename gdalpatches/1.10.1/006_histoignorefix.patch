@@ -1,5 +1,5 @@
---- gdalrasterband.cpp.orig	2013-11-07 08:52:25.135504000 +1300
-+++ gdalrasterband.cpp	2013-11-07 08:53:24.038031227 +1300
+--- gcore/gdalrasterband.cpp.orig	2013-11-07 08:52:25.135504000 +1300
++++ gcore/gdalrasterband.cpp	2013-11-07 08:53:24.038031227 +1300
 @@ -2958,7 +2958,10 @@
                  GByte  *pabyData = (GByte *) pData;
                  
