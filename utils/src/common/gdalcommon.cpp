@@ -405,15 +405,16 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
      
     /* Calc the histogram */
     int *pHisto;
-    int nHistBuckets;
+    int nHistBuckets=0;
       
-      float histmin = 0, histmax = 0, histminTmp = 0, histmaxTmp = 0;
+      float histmin = 0, histmax = 0, histminTmp = 0, histmaxTmp = 0, histstep = 0;
       if( hBand->GetRasterDataType() == GDT_Byte )
       {
           /* if it is 8 bit just do a histo on the lot so we don't get rounding errors */ 
           nHistBuckets = 256;
           histmin = 0;
           histmax = 255;
+          histstep = 1.0;
           histminTmp = -0.5;
           histmaxTmp = 255.5;
           snprintf( szTemp, MAX_TEMP_STRING, "%f", fStdDev );
@@ -424,11 +425,13 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
           nHistBuckets = ceil(fmax)+1;
           histmin = 0;
           histmax = ceil(fmax);
+          histstep = 1.0;
           histminTmp = -0.5;
           histmaxTmp = histmax + 0.5;
           histoType = histoTypeDirect;
       }
-      else
+      else if((hBand->GetRasterDataType() == GDT_Int16) || (hBand->GetRasterDataType() == GDT_UInt16) ||
+            (hBand->GetRasterDataType() == GDT_Int32) || (hBand->GetRasterDataType() == GDT_UInt32))
       {
           int range = (ceil(fmax) - floor(fmin));
           histmin = fmin;
@@ -436,6 +439,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
           if((range > 0) && (range <= HISTO_NBINS))
           {
               nHistBuckets = range;
+              histstep = 1.0;
               histoType = histoTypeDirect;
               
               histminTmp = histmin - 0.5;
@@ -447,8 +451,21 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
               histoType = histoTypeLinear;
               histminTmp = histmin;
               histmaxTmp = histmax;
+              histstep = float(histmaxTmp - histminTmp) / nHistBuckets;
           }
       }
+      else if( (hBand->GetRasterDataType() == GDT_Float32) || (hBand->GetRasterDataType() == GDT_Float64))
+      {
+          nHistBuckets = HISTO_NBINS;
+          histoType = histoTypeLinear;
+          histmin = fmin;
+          histmax = fmax;
+          histminTmp = histmin;
+          histmaxTmp = histmax;
+          histstep = float(histmaxTmp - histminTmp) / nHistBuckets;
+      }
+      // not handling complex for now...
+
       pHisto = (int*)calloc(nHistBuckets, sizeof(int));
       // the patch 005_histoignore.patch means that ignore values are ignored
       // (if set) in calculation of histogram
@@ -474,7 +491,8 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
         /* by adding together the size needed for each bin */
         nTotalSizeStringBinValues += snprintf(NULL, 0, "%d|", pHisto[count] );
     }
-    float fMode = maxbin * ((histmax-histmin) / nHistBuckets);
+    // histstep calculated above
+    float fMode = maxbin * histstep + histmin;
     
     if( ( hBand->GetRasterDataType( ) == GDT_Float32 ) || 
       ( hBand->GetRasterDataType( ) == GDT_Float64 ) )
@@ -508,11 +526,7 @@ void calcstats( GDALDataset *hHandle, bool bIgnore, float fIgnoreVal, bool bPyra
 	    nHistoStringCurrentIdx += sprintf( &pszHistoString[nHistoStringCurrentIdx], "%d|", pHisto[count] );
   	}
    
-    float fMedian = nWhichMedian * ((histmax-histmin) / nHistBuckets);
-    if( nWhichMedian < nHistBuckets - 1 )
-    {
-      fMedian = ( fMedian + ((nWhichMedian+1) * ((histmax-histmin) / nHistBuckets)) ) / 2;
-    }
+    float fMedian = nWhichMedian * histstep + histmin;
 
     if( ( GDALGetRasterDataType( hBand ) == GDT_Float32 ) || 
       ( GDALGetRasterDataType( hBand ) == GDT_Float64 ) )
