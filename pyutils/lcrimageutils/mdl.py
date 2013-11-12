@@ -8,6 +8,7 @@ Imagine Spatial Modeller, but are not native to pymodeller/numpy.
 
 import sys
 import numpy
+import functools
 from scipy.ndimage import label
 try:
     from scipy import weave
@@ -97,14 +98,14 @@ def and_list(conditionList):
     Takes a list of condition arrays and does logical_and on the whole
     lot. 
     """
-    return reduce(numpy.logical_and, conditionList)
+    return functools.reduce(numpy.logical_and, conditionList)
 
 def or_list(conditionList):
     """
     Takes a list of condition arrays and does logical_or on the whole
     lot. 
     """
-    return reduce(numpy.logical_or, conditionList)
+    return functools.reduce(numpy.logical_or, conditionList)
 
 
 def pixinlist(img, valList):
