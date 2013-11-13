@@ -9,7 +9,12 @@ Imagine Spatial Modeller, but are not native to pymodeller/numpy.
 import sys
 import numpy
 import functools
-from scipy.ndimage import label
+try:
+    from numba import autojit
+    HAVE_NUMBA = True
+except ImportError:
+    # numba not available - expect some functions to run very slow...
+    HAVE_NUMBA = False
 
 class MdlFuncError(Exception):
     pass
@@ -132,67 +137,77 @@ def makestack(inputList):
     return numpy.concatenate(stack, axis=0)
 
 
-def uniquevalues(a):
+@autojit
+def clump(input, valid, clumpId=0):
     """
-    This function is entirely redundant, since there is an equivalent
-    numpy function, numpy.unique(). I just didn't know it existed when 
-    I wrote this. Please refrain from using this, use numpy.unique() 
-    instead. 
-    
-    Returns a list of the unique values contained in the given array.
-    Only works for integer-ish types, since float arrays (and other more 
-    complicated types) would be too problematic. 
-    
-    """
-    return list(numpy.unique(a))
+    Implementation of clump using Numba
+    Uses the 4 connected algorithm.
 
+    Input should be an integer 2 d array containing the data to be clumped.
+    Valid should be a boolean 2 d array containing True where data to be 
+        processed
+    clumpId is the start clump id to use
 
-def clump(img, nbrcount=4, connect=None, nullVal=0):
+    returns a 2d uint32 array containing the clump ids
+    and the highest clumpid used + 1
     """
-    Mimics the Imagine modeller CLUMP function. Only works for
-    single band images (i.e. img is a 2d array). 
-    
-    Needs to use the whole image at once, so if using from inside
-    pymodeller, it should be used with doFullWindow(). 
-    
-    Returns an array of the same shape as img, with contiguous clumps 
-    of equal values each given a unique clump id. Contiguousness is tested 
-    against either the four direct neighbours or all eight surrounding 
-    neighbours, depending on the value of nbrcount. This is the same
-    controlling mechanism as used in Imagine. There is also a more general
-    control using the connect argument (which over-rides nbrcount if given). 
-    Connect is a 3x3 array which maps how the central pixel is tested
-    against those surrounding. A zero in a surrounding pixel means no test
-    against that pixel. 
-    
-    The nullVal is used to fill the output clump array, and pixels with this
-    value in the input array are not counted as part of any clump. 
-    
-    Only works on an integer-like input array. 
-    
-    """
-    shape = img.shape
-    clumps = numpy.zeros(shape, dtype=numpy.uint32)
-    clumps[...] = nullVal
-    
-    if connect is None:
-        if nbrcount == 4:
-            connect = numpy.array([[0,1,0],[1,1,1],[0,1,0]])
-        elif nbrcount == 8:
-            connect = numpy.ones((3,3))
-    
-    clumpid = numpy.uint32(0)
-    imgvals = uniquevalues(img)
-    for val in imgvals:
-        if val != nullVal:
-            mask = (img == val)
-            labelledmask = numpy.zeros(shape, dtype=numpy.int32)
-            numObj = label(mask, structure=connect, output=labelledmask)
-            clumps = numpy.where(mask, labelledmask + clumpid, clumps)
-            clumpid += numpy.uint32(numObj)
-                
-    return clumps.astype(numpy.uint32)
+    (ysize, xsize) = input.shape
+    output = numpy.zeros_like(input, dtype=numpy.uint32)
 
+    # lists slow from Numba - use an array since
+    # we know the maximum size
+    searchIdx = 0
+    search_list = numpy.empty((xsize*ysize, 2), dtype=numpy.int)
+
+    # run through the image
+    for y in range(ysize):
+        for x in range(xsize):
+            # check if we have visited this one before
+            if valid[y, x] and output[y, x] == 0:
+                val = input[y, x]
+                searchIdx = 0
+                search_list[searchIdx, 0] = y
+                search_list[searchIdx, 1] = x
+                searchIdx += 1
+                output[y, x] = clumpId # marked as visited
+
+                while searchIdx > 0:
+                    # search the last one
+                    searchIdx -= 1
+                    sy = search_list[searchIdx, 0]
+                    sx = search_list[searchIdx, 1]
+
+                    # work out the 3x3 window to vist
+                    tlx = sx - 1
+                    if tlx < 0:
+                        tlx = 0
+                    tly = sy - 1
+                    if tly < 0:
+                        tly = 0
+                    brx = sx + 1
+                    if brx > xsize - 1:
+                        brx = xsize - 1
+                    bry = sy + 1
+                    if bry > ysize - 1:
+                        bry = ysize - 1
+
+                    for cx in range(tlx, brx+1):
+                        for cy in range(tly, bry+1):
+                            # do a '4 neighbour search'
+                            # don't have to check we are the middle
+                            # cell since output will be != 0
+                            # since we do that before we add it to search_list
+                            if (cy == sy or cx == sx) and (valid[cy, cx] and 
+                                    output[cy, cx] == 0 and 
+                                    input[cy, cx] == val):
+                                output[cy, cx] = clumpId # mark as visited
+                                # add this one to the ones to search the neighbours
+                                search_list[searchIdx, 0] = cy
+                                search_list[searchIdx, 1] = cx
+                                searchIdx += 1
+                clumpId += 1
+
+    return output, clumpId
 
 def clumpsizes(clumps, nullVal=0):
     """

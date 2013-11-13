@@ -31,66 +31,6 @@ class CmdArgs(object):
             self.parser.print_help()
             sys.exit(1)
 
-@autojit
-def numbaClump(input, valid, clumpId):
-    (ysize, xsize) = input.shape
-    output = numpy.zeros_like(input, dtype=numpy.uint32)
-
-    # lists slow from Numba - use an array since
-    # we know the maximum size
-    searchIdx = 0
-    search_list = numpy.empty((xsize*ysize, 2), dtype=numpy.int)
-
-    # run through the image
-    for y in range(ysize):
-        for x in range(xsize):
-            # check if we have visited this one before
-            if valid[y, x] and output[y, x] == 0:
-                val = input[y, x]
-                searchIdx = 0
-                search_list[searchIdx, 0] = y
-                search_list[searchIdx, 1] = x
-                searchIdx += 1
-                output[y, x] = clumpId # marked as visited
-
-                while searchIdx > 0:
-                    # search the last one
-                    searchIdx -= 1
-                    sy = search_list[searchIdx, 0]
-                    sx = search_list[searchIdx, 1]
-
-                    # work out the 3x3 window to vist
-                    tlx = sx - 1
-                    if tlx < 0:
-                        tlx = 0
-                    tly = sy - 1
-                    if tly < 0:
-                        tly = 0
-                    brx = sx + 1
-                    if brx > xsize - 1:
-                        brx = xsize - 1
-                    bry = sy + 1
-                    if bry > ysize - 1:
-                        bry = ysize - 1
-
-                    for cx in range(tlx, brx+1):
-                        for cy in range(tly, bry+1):
-                            # do a '4 neighbour search'
-                            # don't have to check we are the middle
-                            # cell since output will be != 0
-                            # since we do that before we add it to search_list
-                            if (cy == sy or cx == sx) and (valid[cy, cx] and 
-                                    output[cy, cx] == 0 and 
-                                    input[cy, cx] == val):
-                                output[cy, cx] = clumpId # mark as visited
-                                # add this one to the ones to search the neighbours
-                                search_list[searchIdx, 0] = cy
-                                search_list[searchIdx, 1] = cx
-                                searchIdx += 1
-                clumpId += 1
-
-    return output, clumpId
-
 def riosClump(info, inputs, outputs, otherinputs):
     """
     Called from RIOS - clumps each individual tile separately
@@ -104,7 +44,7 @@ def riosClump(info, inputs, outputs, otherinputs):
         # no ignore val set - all valid
         valid = numpy.ones_like(inputs.infile[0], dtype=numpy.bool)
 
-    out, clumpId = numbaClump(inputs.infile[0], valid, otherinputs.clumpId)
+    out, clumpId = mdl.clump(inputs.infile[0], valid, otherinputs.clumpId)
 
     outputs.outfile = mdl.makestack([out])
     otherinputs.clumpId = clumpId
