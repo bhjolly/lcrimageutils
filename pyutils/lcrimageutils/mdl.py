@@ -17,6 +17,7 @@ except ImportError:
     HAVE_NUMBA = False
     # have to define our own autojit so Python doesn't complain
     def autojit(func):
+        print("Warning: Numba not available - current function will run very slowly...")
         return func
 
 class MdlFuncError(Exception):
