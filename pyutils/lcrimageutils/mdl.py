@@ -10,7 +10,7 @@ import sys
 import numpy
 import functools
 try:
-    from numba import autojit
+    from numba import autojit, int_
     HAVE_NUMBA = True
 except ImportError:
     # numba not available - expect some functions to run very slow...
@@ -245,7 +245,6 @@ def clumpsizeimg(clumps, nullVal=0):
     sizeimg = sizes[clumps]
     return sizeimg
 
-
 class ValueIndexes(object):
     """
     An object which contains the indexes for every value in a given array.
@@ -296,6 +295,11 @@ class ValueIndexes(object):
                             the values array without explicitly searching. 
         nullVals            Array of the null values requested. 
     
+    Limtations:
+        The array index values are handled using unsigned 32bit int values, so 
+        it won't work if the data array is larger than 4Gb. I don't think it would
+        fail very gracefully, either. 
+    
     """
     def __init__(self, a, nullVals=[]):
         """
@@ -304,8 +308,8 @@ class ValueIndexes(object):
         in the results, so that indexes for these cannot be determined. 
         
         """
-        integerTypes = [numpy.bool, numpy.int8, numpy.uint8, numpy.int16, numpy.uint16,
-            numpy.int32, numpy.uint32, numpy.int64, numpy.uint64]
+        integerTypes = [numpy.int8, numpy.uint8, numpy.int16, numpy.uint16,
+            numpy.int32, numpy.uint32]
         if a.dtype not in integerTypes:
             raise NonIntTypeError("ValueIndexes only works on integer-like types. Array is %s"%a.dtype)
              
@@ -318,7 +322,7 @@ class ValueIndexes(object):
         minval = a.min()
         maxval = a.max()
         (counts, binEdges) = numpy.histogram(a, range=(minval, maxval+1), 
-            bins=(maxval-minval+1), new=True)
+            bins=(maxval-minval+1))
             
         # Mask counts for any requested null values. 
         maskedCounts = counts.copy()
@@ -330,93 +334,29 @@ class ValueIndexes(object):
         # Allocate space to store all indexes
         totalCounts = self.counts.sum()
         self.nDims = a.ndim
-        self.indexes = numpy.zeros((totalCounts, a.ndim), dtype=int)
+        self.indexes = numpy.zeros((totalCounts, a.ndim), dtype=numpy.uint32)
         self.end = self.counts.cumsum()
         self.start = self.end - self.counts
         
-        # A lookup table to make searching for a value very fast.
-        valrange = numpy.array([self.values.min(), self.values.max()])
-        numLookups = valrange[1] - valrange[0] + 1
-        self.valLU = numpy.zeros(numLookups, dtype=numpy.uint16)
-        self.valLU.fill(-1)     # A value to indicate "not found"
-        for i in range(len(self.values)):
-            val = self.values[i]
-            self.valLU[val - valrange[0]] = i
-        
-        # Array names to pass to the weave C code
-        counts = self.counts
-        values = self.values
-        indexes = self.indexes
-        start = self.start
-        end = self.end
-        nDims = self.nDims
-        numVals = len(values)
-        # For use within weave code. For each value, the current index 
-        # into the indexes array. A given element is incremented whenever it finds
-        # a new element of that value. 
-        currentIndex = start.copy()
-        valLU = self.valLU
-        
-        Ccode = """
-            int a_ndx, n, j, m, i, found, stride;
-            long int a_val;
-            PyArrayIterObject *iter = NULL;
-            
-            /* Use generic iterator to iterate over all elements 
-               in the array, regardless of how many dimensions it has.
-            */
-            iter = (PyArrayIterObject *)PyArray_IterNew((PyObject *)a_array);
-            PyArray_ITER_RESET(iter);
-            a_ndx = 0;
-            while (PyArray_ITER_NOTDONE(iter)) {
-                /* Extract the current array element into an integer. 
-                   I am sure there must be a better way of doing the 
-                   type casting, but I can't find it. */
-                switch (PyArray_TYPE(a_array)) {
-                    case NPY_BOOL: 
-                    case NPY_BYTE: 
-                        a_val = *((char *)PyArray_ITER_DATA(iter)); break;
-                    case NPY_UBYTE: a_val = *((unsigned char *)PyArray_ITER_DATA(iter)); break;
-                    case NPY_SHORT: a_val = *((short *)PyArray_ITER_DATA(iter)); break;
-                    case NPY_USHORT: a_val = *((unsigned short *)PyArray_ITER_DATA(iter)); break;
-                    case NPY_INT: 
-                    case NPY_LONG: 
-                    case NPY_LONGLONG: 
-                        a_val = *((int *)PyArray_ITER_DATA(iter)); break;
-                    case NPY_UINT: 
-                    case NPY_ULONG: 
-                    case NPY_ULONGLONG: 
-                        a_val = *((unsigned int *)PyArray_ITER_DATA(iter)); break;
-                }
-                
-                /* Find this value in the array of values */
-                found = 0;  /* FALSE */
-                if ((a_val >= valrange(0)) && (a_val <= valrange(1))) {
-                    i = valLU(a_val - valrange(0));
-                    found = (i >= 0);
-                }
-                
-                if (found) {
-                    /* Work out what the index values are in the various dimensions,
-                       and store them in indexes array. */
-                    n = a_ndx;
-                    m = currentIndex(i);
-                    for (j=0; j<Nindexes[1]; j++) {
-                        stride = PyArray_STRIDES(a_array)[j] / PyArray_ITEMSIZE(a_array);
-                        indexes(m, j) = n / stride;
-                        n = n - indexes(m, j) * stride;
-                    }
-                    currentIndex(i) = m + 1;
-                }
-                
-                a_ndx += 1;
-                PyArray_ITER_NEXT(iter);
-            }
-        """
-        
-        variables = ['a', 'values', 'indexes', 'currentIndex', 'valLU', 'valrange']
-        weave.inline(Ccode, variables)
+        if len(self.values) > 0:
+            # A lookup table to make searching for a value very fast.
+            valrange = numpy.array([self.values.min(), self.values.max()])
+            numLookups = valrange[1] - valrange[0] + 1
+            self.valLU = numpy.zeros(numLookups, dtype=numpy.uint16)
+            self.valLU.fill(-1)     # A value to indicate "not found"
+            for i in range(len(self.values)):
+                val = self.values[i]
+                self.valLU[val - valrange[0]] = i
 
+            # For use within C code. For each value, the current index 
+            # into the indexes array. A given element is incremented whenever it finds
+            # a new element of that value. 
+            currentIndex = self.start.copy().astype(numpy.uint32)
+
+            if not numpy.issubdtype(a.dtype, numpy.integer):
+                raise NonIntTypeError('Array must be of integer type')
+
+            _valndxFunc(a, self.indexes, valrange[0], valrange[1], self.valLU, currentIndex)
 
     def getIndexes(self, val):
         """
@@ -443,8 +383,57 @@ class ValueIndexes(object):
         for i in range(self.nDims):
             ndx += (self.indexes[start:end, i], )
         return ndx
-            
 
+@autojit
+def _valndxFunc(a, indexes, minVal, maxVal, valLU, currentIndex):
+    """
+    To be called by ValueIndexes. An implementation using Numba of Neil's
+    C code. This has the advantage of being able to handle any integer
+    type passed. However it does currently run much slower than the C code
+    (although faster than plain Python) because of the reasons noted below.
+    """
+    # need to override the type otherwise numba creates an array of
+    # type 'object' for some reason
+    shape = numpy.array(a.shape, dtype=numpy.int)
+    # our array that contains the current index in each of the dims
+    curridx = numpy.zeros_like(shape)
+    done = False
+    lastidx = a.ndim - 1
+
+    while not done:
+        # this is currently slow since numba must create a Python
+        # tuple each time arount the loop. There seems to be no
+        # other way of getting the value at the specified indexes.
+        arrVal = int_(a[tuple(curridx)])
+        
+        found = False
+        j = 0
+        if arrVal >= minVal and arrVal <= maxVal:
+            j = valLU[arrVal - minVal]
+            found = j >= 0
+
+        if found:
+            m = currentIndex[j]
+            # I believe this next line is also quite slow
+            # in numba since it is optimised for single
+            # element access
+            indexes[m] = curridx
+            currentIndex[j] = m + 1        
+    
+        # code that updates curridx - incs the next dim
+        # if we have done all the elements in the current 
+        # dim
+        idx = lastidx
+        while idx >= 0:
+            curridx[idx] = curridx[idx] + 1
+            if curridx[idx] >= shape[idx]:
+                curridx[idx] = 0
+                idx -= 1
+            else:
+                break
+
+        # if we are done we have run out of dims
+        done = idx < 0
 
 def prewitt(img):
     """
@@ -508,3 +497,15 @@ def stretch(imgLayer, numStdDev, minVal, maxVal, ignoreVal,
     stretched = numpy.where(imgLayer == ignoreVal, outputNullVal, stretched)
     return stretched
 
+def makeBufferKernel(buffsize):
+    """
+    Make a 2-d array for buffering. It represents a circle of 
+    radius buffsize pixels, with 1 inside the circle, and zero outside.
+    """
+    bufferkernel = None
+    if buffsize > 0:
+        n = 2 * buffsize + 1
+        (r, c) = numpy.mgrid[:n, :n]
+        radius = numpy.sqrt((r-buffsize)**2 + (c-buffsize)**2)
+        bufferkernel = (radius <= buffsize).astype(numpy.uint8)
+    return bufferkernel
