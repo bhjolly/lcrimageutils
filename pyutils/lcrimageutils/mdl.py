@@ -30,6 +30,7 @@ class NotImageError(MdlFuncError):
     pass
 class NonIntTypeError(MdlFuncError):
     pass
+class RangeError(MdlFuncError): pass
 
 def stackwhere(mask, trueVal, falseVal):
     """
@@ -343,13 +344,14 @@ class ValueIndexes(object):
             # A lookup table to make searching for a value very fast.
             valrange = numpy.array([self.values.min(), self.values.max()])
             numLookups = valrange[1] - valrange[0] + 1
-            self.valLU = numpy.zeros(numLookups, dtype=numpy.uint16)
-            self.valLU.fill(-1)     # A value to indicate "not found"
-            for i in range(len(self.values)):
-                val = self.values[i]
-                self.valLU[val - valrange[0]] = i
+            maxUint32 = 2**32 - 1
+            if numLookups > maxUint32:
+                raise RangeError("Range of different values is too great for uint32")
+            self.valLU = numpy.zeros(numLookups, dtype=numpy.uint32)
+            self.valLU.fill(maxUint32)     # A value to indicate "not found", must match _valndxFunc below
+            self.valLU[self.values - self.values[0]] = range(len(self.values))
 
-            # For use within C code. For each value, the current index 
+            # For use within numba. For each value, the current index 
             # into the indexes array. A given element is incremented whenever it finds
             # a new element of that value. 
             currentIndex = self.start.copy().astype(numpy.uint32)
@@ -443,6 +445,7 @@ def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, ge
     curridx = numpy.zeros_like(shape)
     done = False
     lastidx = ndim - 1
+    maxuint32 = 4294967295 # 2^32 - 1
 
     while not done:
         # use the specially chosen function for indexing the array
@@ -452,7 +455,7 @@ def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, ge
         j = 0
         if arrVal >= minVal and arrVal <= maxVal:
             j = valLU[arrVal - minVal]
-            found = j >= 0
+            found = j < maxuint32
 
         if found:
             m = currentIndex[j]
