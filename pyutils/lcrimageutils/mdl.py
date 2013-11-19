@@ -10,15 +10,16 @@ import sys
 import numpy
 import functools
 try:
-    from numba import autojit, int_
+    from numba import autojit, int64
     HAVE_NUMBA = True
 except ImportError:
     # numba not available - expect some functions to run very slow...
     HAVE_NUMBA = False
     # have to define our own autojit so Python doesn't complain
     def autojit(func):
-        print("Warning: Numba not available - current function will run very slowly...")
+        print("Warning: Numba not available - function '%s' will run very slowly..." % func.__name__)
         return func
+    int64 = int
 
 class MdlFuncError(Exception):
     pass
@@ -357,7 +358,28 @@ class ValueIndexes(object):
             if not numpy.issubdtype(a.dtype, numpy.integer):
                 raise NonIntTypeError('Array must be of integer type')
 
-            _valndxFunc(a, self.indexes, valrange[0], valrange[1], self.valLU, currentIndex)
+            # pass the appropriate function in for accessing the 
+            # values in the array. This is to workaround limitation
+            # of numba in that it has to know the dims of the array
+            # it is working with
+            if a.ndim == 1:
+                getVal = _getVal1
+            elif a.ndim == 2:
+                getVal = _getVal2
+            elif a.ndim == 3:
+                getVal = _getVal3
+            elif a.ndim == 4:
+                getVal = _getVal4
+            elif a.ndim == 5:
+                getVal = _getVal5
+            elif a.ndim == 6:
+                getVal = _getVal6
+            else:
+                raise ShapeMismatchError('Array can only have 6 or viewer dimensions')
+
+            shape = numpy.array(a.shape, dtype=numpy.int)
+            _valndxFunc(a, shape, a.ndim, self.indexes, valrange[0], valrange[1], 
+                        self.valLU, currentIndex, getVal)
 
     def getIndexes(self, val):
         """
@@ -385,27 +407,47 @@ class ValueIndexes(object):
             ndx += (self.indexes[start:end, i], )
         return ndx
 
+# the following functions are alternative to creating
+# a tuple for indexing the array (which is slow from numba)
 @autojit
-def _valndxFunc(a, indexes, minVal, maxVal, valLU, currentIndex):
+def _getVal1(a, curridx):
+    return int64(a[curridx[0]])
+
+@autojit
+def _getVal2(a, curridx):
+    return int64(a[curridx[0], curridx[1]])
+
+@autojit
+def _getVal3(a, curridx):
+    return int64(a[curridx[0], curridx[1], curridx[2]])
+
+@autojit
+def _getVal4(a, curridx):
+    return int64(a[curridx[0], curridx[1], curridx[2], curridx[3]])
+
+@autojit
+def _getVal5(a, curridx):
+    return int64(a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4]])
+
+@autojit
+def _getVal6(a, curridx):
+    return int64(a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4], curridx[5]])
+
+@autojit
+def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, getVal):
     """
     To be called by ValueIndexes. An implementation using Numba of Neil's
     C code. This has the advantage of being able to handle any integer
-    type passed. However it does currently run much slower than the C code
-    (although faster than plain Python) because of the reasons noted below.
+    type passed.
     """
-    # need to override the type otherwise numba creates an array of
-    # type 'object' for some reason
-    shape = numpy.array(a.shape, dtype=numpy.int)
     # our array that contains the current index in each of the dims
     curridx = numpy.zeros_like(shape)
     done = False
-    lastidx = a.ndim - 1
+    lastidx = ndim - 1
 
     while not done:
-        # this is currently slow since numba must create a Python
-        # tuple each time arount the loop. There seems to be no
-        # other way of getting the value at the specified indexes.
-        arrVal = int_(a[tuple(curridx)])
+        # use the specially chosen function for indexing the array
+        arrVal = getVal(a, curridx)
         
         found = False
         j = 0
@@ -415,10 +457,8 @@ def _valndxFunc(a, indexes, minVal, maxVal, valLU, currentIndex):
 
         if found:
             m = currentIndex[j]
-            # I believe this next line is also quite slow
-            # in numba since it is optimised for single
-            # element access
-            indexes[m] = curridx
+            for i in range(ndim):
+                indexes[m, i] = curridx[i]
             currentIndex[j] = m + 1        
     
         # code that updates curridx - incs the next dim
