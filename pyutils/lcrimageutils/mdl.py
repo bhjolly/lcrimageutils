@@ -10,7 +10,7 @@ import sys
 import numpy
 import functools
 try:
-    from numba import autojit, int64
+    from numba import autojit
     HAVE_NUMBA = True
 except ImportError:
     # numba not available - expect some functions to run very slow...
@@ -19,7 +19,6 @@ except ImportError:
     def autojit(func):
         print("Warning: Numba not available - function '%s' will run very slowly..." % func.__name__)
         return func
-    int64 = int
 
 class MdlFuncError(Exception):
     pass
@@ -411,27 +410,27 @@ class ValueIndexes(object):
 # a tuple for indexing the array (which is slow from numba)
 @autojit
 def _getVal1(a, curridx):
-    return int64(a[curridx[0]])
+    return a[curridx[0]]
 
 @autojit
 def _getVal2(a, curridx):
-    return int64(a[curridx[0], curridx[1]])
+    return a[curridx[0], curridx[1]]
 
 @autojit
 def _getVal3(a, curridx):
-    return int64(a[curridx[0], curridx[1], curridx[2]])
+    return a[curridx[0], curridx[1], curridx[2]]
 
 @autojit
 def _getVal4(a, curridx):
-    return int64(a[curridx[0], curridx[1], curridx[2], curridx[3]])
+    return a[curridx[0], curridx[1], curridx[2], curridx[3]]
 
 @autojit
 def _getVal5(a, curridx):
-    return int64(a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4]])
+    return a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4]]
 
 @autojit
 def _getVal6(a, curridx):
-    return int64(a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4], curridx[5]])
+    return a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4], curridx[5]]
 
 @autojit
 def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, getVal):
