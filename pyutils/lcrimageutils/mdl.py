@@ -17,8 +17,12 @@ except ImportError:
     HAVE_NUMBA = False
     # have to define our own autojit so Python doesn't complain
     def autojit(func):
-        print("Warning: Numba not available - function '%s' will run very slowly..." % func.__name__)
-        return func
+        def wrapper(*args, **kwargs):
+            if not hasattr(func, 'numbaWarningEmitted'):
+                print("Warning: Numba not available - function '%s' will run very slowly..." % func.__name__)
+                func.numbaWarningEmitted = True
+            return func(*args, **kwargs)
+        return wrapper
 
 class MdlFuncError(Exception):
     pass
@@ -143,7 +147,7 @@ def makestack(inputList):
 
 
 @autojit
-def clump(input, valid, clumpId=0):
+def clump(input, valid, clumpId=1):
     """
     Implementation of clump using Numba
     Uses the 4 connected algorithm.
