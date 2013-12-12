@@ -50,39 +50,55 @@ def riosClump(info, inputs, outputs, otherinputs):
     otherinputs.clumpId = clumpId
 
 @autojit
+def recodeInternal(clump, oldvalue, newvalue):
+    ysize, xsize = clump.shape
+    for y in range(ysize):
+        for x in range(xsize):
+            value = clump[y, x]
+            if value == oldvalue:
+                clump[y, x] = newvalue
+
+@autojit
+def mergeInternal(clump, recode, dontrecode, thisy, thisx, othery, otherx):
+    """
+    This was a closure of numbaMerge until it seemed there was a big
+    memory leak. This seems to work much better.
+    """
+    thisClumpId = clump[thisy, thisx]
+    otherClumpId = clump[othery, otherx]
+    # don't bother if they already have the same id 
+    # and don't bother recoding 0's
+    if (thisClumpId != otherClumpId and thisClumpId != 0 and 
+            otherClumpId != 0):
+        if not dontrecode[otherClumpId]:
+            # only if this one isn't marked to be recoded
+            recode[otherClumpId] = recode[thisClumpId]
+            # recode while we go
+            recodeInternal(clump, otherClumpId, thisClumpId)
+            # mark as not to be recoded
+            dontrecode[thisClumpId] = True
+        elif not dontrecode[thisClumpId]:
+            # ok try the other way around
+            recode[thisClumpId] = recode[otherClumpId]
+            recodeInternal(clump, thisClumpId, otherClumpId)
+            dontrecode[otherClumpId] = True
+        else:
+            # need to re run the whole thing
+            # both are marked as un-recodable
+            return 1
+    return 0
+
+@autojit
 def numbaMerge(infile, clump, recode, dontrecode, processBottom, processRight):
     """
     Merge the clumps using a slightly complicated algorithm
     """
     ysize, xsize = infile.shape
     nFailedRecodes = 0
-
-    @jit('int_()')
-    def merge():
-        thisClumpId = clump[thisy, thisx]
-        otherClumpId = clump[othery, otherx]
-        # don't bother if they already have the same id 
-        # and don't bother recoding 0's
-        if (thisClumpId != otherClumpId and thisClumpId != 0 and 
-                otherClumpId != 0):
-            if not dontrecode[otherClumpId]:
-                # only if this one isn't marked to be recoded
-                recode[otherClumpId] = recode[thisClumpId]
-                # recode while we go
-                clump[clump == otherClumpId] = thisClumpId
-                # mark as not to be recoded
-                dontrecode[thisClumpId] = True
-            elif not dontrecode[thisClumpId]:
-                # ok try the other way around
-                recode[thisClumpId] = recode[otherClumpId]
-                clump[clump == thisClumpId] = otherClumpId
-                dontrecode[otherClumpId] = True
-            else:
-                # need to re run the whole thing
-                # both are marked as un-recodable
-                return 1
-        return 0
-        
+    thisx = 0
+    otherx = 0
+    thisy = 0
+    othery = 0
 
     if processBottom:
         # this isn't the bottom most block so run along the bottom
@@ -94,7 +110,8 @@ def numbaMerge(infile, clump, recode, dontrecode, processBottom, processRight):
             otherx = thisx
             if infile[thisy, thisx] == infile[othery, otherx]:
                 # they should be the same clump - they have the same DNs
-                nFailedRecodes += merge()
+                nFailedRecodes += mergeInternal(clump, recode, dontrecode, 
+                                    thisy, thisx, othery, otherx)
 
     # same for the right hand margin if we aren't the rightmost block
     if processRight:
@@ -104,7 +121,8 @@ def numbaMerge(infile, clump, recode, dontrecode, processBottom, processRight):
             othery = thisy
             if infile[thisy, thisx] == infile[othery, otherx]:
                 # they should be the same clump
-                nFailedRecodes += merge()
+                nFailedRecodes += mergeInternal(clump, recode, dontrecode, 
+                                    thisy, thisx, othery, otherx)
 
     return nFailedRecodes
 
