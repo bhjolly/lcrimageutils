@@ -3,6 +3,7 @@
 import os
 import sys
 import stat
+import shutil
 import optparse
 import tempfile
 from rios import applier, cuiprogress
@@ -230,7 +231,8 @@ def doClump(infile, outfile, tempDir):
     cmd = 'gdalcalcstats %s -ignore 0' % tmpMerged
     os.system(cmd)
 
-    os.rename(tmpMerged, outfile)
+    # use move rather than rename in case we are on different filesystems
+    shutil.move(tmpMerged, outfile)
 
     # just be careful here since the permissions will be set strangely
     # for outfile since it was created by tempfile. Set to match current umask
