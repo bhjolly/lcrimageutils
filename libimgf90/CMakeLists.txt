@@ -13,8 +13,6 @@ set(LIBIMGF90_LIB_NAME imgf90)
 
 set(GDAL_INCLUDE_PATH /usr/local/include CACHE PATH "Include PATH for GDAL")
 set(GDAL_LIB_PATH /usr/local/lib CACHE PATH "Library PATH for GDAL")
-set(GDALCOMMON_INCLUDE_PATH /usr/local/include CACHE PATH "Include PATH for gdalutils libgdalcommon")
-set(GDALCOMMON_LIB_PATH /usr/local/include CACHE PATH "Library PATH for gdalutils libgdalcommon")
 
 ###############################################################################
 # CMake settings
@@ -49,11 +47,11 @@ else()
 endif(APPLE)
 ###############################################################################
 
-include_directories(${GDAL_INCLUDE_PATH} ${GDALCOMMON_INCLUDE_PATH})
+include_directories(${GDAL_INCLUDE_PATH})
 if (WIN32)
-  set(GDAL_LIBRARIES -LIBPATH:"${GDAL_LIB_PATH}" gdal_i.lib -LIBPATH:"${GDALCOMMON_LIB_PATH}" gdalcommon_i.lib )
+  set(GDAL_LIBRARIES -LIBPATH:"${GDAL_LIB_PATH}" gdal_i.lib)
 else()
-  set(GDAL_LIBRARIES -L${GDAL_LIB_PATH} -lgdal -L${GDALCOMMON_LIB_PATH} -lgdalcommon)
+  set(GDAL_LIBRARIES -L${GDAL_LIB_PATH} -lgdal)
 endif(WIN32)
 
 ###############################################################################

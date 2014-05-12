@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "gdal.h"
-#include "gdalcommon.h"
 
 void gdalallregister_()
 {
@@ -70,12 +69,66 @@ GDALDatasetH gdalcreate_(GDALDatasetH *templ, const char *fname,int *xsize, int 
 {
 char *psz;
 GDALDatasetH hds;
+int n_xsize, n_ysize, n_bands, n_type;
+double adfGeoTransform[6];
+const char *pszWKT;
+GDALDriverH hDriver;
+char **pszStringList = NULL;
 
   psz = (char*)calloc( fnamelen + 1, sizeof(char) );
   
   strncpy( psz, fname, fnamelen );
 
-  hds = gdalcommon_newfile_templ( *templ, psz, *xsize, *ysize, *bands, (GDALDataType)*type );
+  n_xsize = *xsize;
+  n_ysize = *ysize;
+  n_bands = *bands;
+  n_type = *type;
+
+  if( n_xsize == 0 )
+  {
+    n_xsize = GDALGetRasterXSize( *templ );
+  }
+  if( n_ysize == 0 )
+  {
+    n_ysize = GDALGetRasterYSize( *templ );
+  }
+  if( n_bands == 0 )
+  {
+    n_bands = GDALGetRasterCount( *templ );
+  }
+  if( n_type == GDT_Unknown )
+  {
+    n_type = GDALGetRasterDataType( GDALGetRasterBand( *templ, 1 ) );
+  }
+
+  if( GDALGetGeoTransform( templ, adfGeoTransform ) != CE_None )
+  {
+    fprintf( stderr, "Cannot find transform\n" );
+    return NULL;
+  }
+
+  pszWKT = GDALGetProjectionRef( templ );
+
+  /* Create the new file */
+  hDriver = GDALGetDriverByName( "HFA" );
+  if( hDriver == NULL )
+  {
+    fprintf( stderr, "Cannot find driver for HFA\n" );
+    return NULL;
+  }
+
+  pszStringList = CSLAddString(NULL, "IGNOREUTM=TRUE");
+  pszStringList = CSLAddString(pszStringList, "COMPRESSED=TRUE");
+  hds = GDALCreate( hDriver, psz, n_xsize, n_ysize, n_bands, n_type, pszStringList );
+  CSLDestroy( pszStringList );
+
+  if( hds != NULL )
+  {
+    /* Set up the projection info */
+    GDALSetProjection( hds, pszWKT );
+    
+    GDALSetGeoTransform( hds, adfGeoTransform );
+  }
 
   free( psz );
   
@@ -114,12 +167,18 @@ void gdalsetgeotransform_(GDALDatasetH *ds, double *transform)
 
 void gdalwld2pix_(double *transform,double *dwldx, double *dwldy, int *x, int *y)
 {
-  gdalcommon_wld2pix(transform,*dwldx,*dwldy,x,y);
+double invtransform[6];
+double dx, dy;
+
+  GDALInvGeoTransform(transform, invtransform);
+  GDALApplyGeoTransform(invtransform, *dwldx, *dwldy, &dx, &dy);
+  *x = dx;
+  *y = dy;
 }
 
 void gdalpix2wld_(double *transform, int *x, int *y,double *dwldx, double *dwldy)
 {
-  gdalcommon_pix2wld( transform, *x, *y, dwldx, dwldy );
+  GDALApplyGeoTransform(transform, *x, *y, dwldx, dwldy);
 }
 
 void gdalsetprojection_(GDALDatasetH *ds, const char *proj, int projlen)
@@ -149,17 +208,6 @@ const char *psz;
   {
     memset( proj, ' ', projlen );
   }
-}
-
-void gdalcalcstats_(GDALDatasetH *ds)
-{
-
-  gdalcommon_calcstats(*ds);
-}
-
-void gdalcalcstatsignore_(GDALDatasetH *ds,float *ignore)
-{
-  gdalcommon_calcstatsignore(*ds,*ignore);
 }
 
 GDALRasterBandH gdalgetrasterband_(GDALDatasetH *ds, int *band)

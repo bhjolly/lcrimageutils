@@ -139,17 +139,6 @@ module libimgf90
             character*(*) proj
         end subroutine
         
-        subroutine GDALCalcStats(ds)
-            use GDAL_Ctypes
-            integer(kind=C_PTR_KIND) ds
-        end subroutine
-        
-        subroutine GDALCalcStatsIgnore(ds, ignore)
-            use GDAL_Ctypes
-            integer(kind=C_PTR_KIND) ds
-            integer(kind=C_FLOAT_KIND) ignore
-        end subroutine
-        
         function GDALGetRasterBand(ds, band)
             use GDAL_Ctypes
             integer(kind=C_PTR_KIND) ds, GDALGetRasterBand
