@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "gdal.h"
+#include "cpl_string.h"
 
 void gdalallregister_()
 {
@@ -170,10 +171,17 @@ void gdalwld2pix_(double *transform,double *dwldx, double *dwldy, int *x, int *y
 double invtransform[6];
 double dx, dy;
 
-  GDALInvGeoTransform(transform, invtransform);
-  GDALApplyGeoTransform(invtransform, *dwldx, *dwldy, &dx, &dy);
-  *x = dx;
-  *y = dy;
+  if( GDALInvGeoTransform(transform, invtransform) )
+  {
+      GDALApplyGeoTransform(invtransform, *dwldx, *dwldy, &dx, &dy);
+      *x = dx;
+      *y = dy;
+  }
+  else
+  {
+    *x = -1;
+    *y = -1;
+  }
 }
 
 void gdalpix2wld_(double *transform, int *x, int *y,double *dwldx, double *dwldy)
