@@ -9,6 +9,6 @@ import glob
 from distutils.core import setup
 
 setup(name='lcrimageutils',
-      scripts=glob.glob('bin/*.py'),
+      scripts=glob.glob('bin/*.py') + ['bin/gdalcalcstats', 'bin/gdaldumpWKT'],
         packages=['lcrimageutils'] )
                                                      
