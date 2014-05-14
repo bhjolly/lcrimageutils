@@ -40,7 +40,7 @@ typedef struct     /* imagery layer */
 
   /* Raster Attribute Table */
 
-  GDALRasterAttributeTableH *hRAT;
+  GDALRasterAttributeTableH hRAT;
   
   /* Map information */
 
