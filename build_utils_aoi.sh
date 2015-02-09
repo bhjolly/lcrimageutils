@@ -21,24 +21,6 @@ cmake -D CMAKE_INSTALL_PREFIX=$1 \
 make 
 make install
 
-cd ../gdalaoi
-
-rm -f CMakeCache.txt
-
-cmake -D CMAKE_INSTALL_PREFIX=$1 \
--D CMAKE_CXX_COMPILER="$LCRCXX" \
--D CMAKE_CXX_FLAGS:STRING="$LCRCXXFLAGS" \
--D CMAKE_C_COMPILER="$LCRCC" \
--D CMAKE_C_FLAGS:STRING="$LCRCFLAGS" \
--D CMAKE_VERBOSE_MAKEFILE=ON \
--D GDAL_INCLUDE_DIR=$GDAL_INCLUDE_PATH \
--D GDAL_LIB_PATH=$GDAL_LIB_PATH \
--D GDAL_SRC_PATH=$GDAL_SRC_PATH \
-.
-
-make 
-make install
-
 cd ../libimgf90
 
 rm -f CMakeCache.txt
