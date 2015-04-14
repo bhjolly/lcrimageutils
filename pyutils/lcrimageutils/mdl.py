@@ -26,13 +26,13 @@ import sys
 import numpy
 import functools
 try:
-    from numba import autojit
+    from numba import jit
     HAVE_NUMBA = True
 except ImportError:
     # numba not available - expect some functions to run very slow...
     HAVE_NUMBA = False
-    # have to define our own autojit so Python doesn't complain
-    def autojit(func):
+    # have to define our own jit so Python doesn't complain
+    def jit(func):
         def wrapper(*args, **kwargs):
             if not hasattr(func, 'numbaWarningEmitted'):
                 print("Warning: Numba not available - function '%s' will run very slowly..." % func.__name__)
@@ -161,8 +161,6 @@ def makestack(inputList):
     
     return numpy.concatenate(stack, axis=0)
 
-
-@autojit
 def clump(input, valid, clumpId=1):
     """
     Implementation of clump using Numba
@@ -172,17 +170,33 @@ def clump(input, valid, clumpId=1):
     Valid should be a boolean 2 d array containing True where data to be 
         processed
     clumpId is the start clump id to use
+    
 
     returns a 2d uint32 array containing the clump ids
     and the highest clumpid used + 1
     """
     (ysize, xsize) = input.shape
     output = numpy.zeros_like(input, dtype=numpy.uint32)
+    search_list = numpy.empty((xsize*ysize, 2), dtype=numpy.int)
+
+    clumpId = _clump(input, valid, output, search_list, clumpId)
+    return output, clumpId
+
+@jit
+def _clump(input, valid, output, search_list, clumpId=1):
+    """
+    Implementation of clump using Numba
+    Uses the 4 connected algorithm.
+    returns a 2d uint32 array containing the clump ids
+    returns the highest clumpid used + 1
+    
+    For internal use by clump()
+    """
+    (ysize, xsize) = input.shape
 
     # lists slow from Numba - use an array since
     # we know the maximum size
     searchIdx = 0
-    search_list = numpy.empty((xsize*ysize, 2), dtype=numpy.int)
 
     # run through the image
     for y in range(ysize):
@@ -232,7 +246,7 @@ def clump(input, valid, clumpId=1):
                                 searchIdx += 1
                 clumpId += 1
 
-    return output, clumpId
+    return clumpId
 
 def clumpsizes(clumps, nullVal=0):
     """
@@ -399,8 +413,10 @@ class ValueIndexes(object):
                 raise ShapeMismatchError('Array can only have 6 or viewer dimensions')
 
             shape = numpy.array(a.shape, dtype=numpy.int)
+            # our array that contains the current index in each of the dims
+            curridx = numpy.zeros_like(shape)
             _valndxFunc(a, shape, a.ndim, self.indexes, valrange[0], valrange[1], 
-                        self.valLU, currentIndex, getVal)
+                        self.valLU, currentIndex, getVal, curridx)
 
     def getIndexes(self, val):
         """
@@ -430,39 +446,37 @@ class ValueIndexes(object):
 
 # the following functions are alternative to creating
 # a tuple for indexing the array (which is slow from numba)
-@autojit
+@jit
 def _getVal1(a, curridx):
     return a[curridx[0]]
 
-@autojit
+@jit
 def _getVal2(a, curridx):
     return a[curridx[0], curridx[1]]
 
-@autojit
+@jit
 def _getVal3(a, curridx):
     return a[curridx[0], curridx[1], curridx[2]]
 
-@autojit
+@jit
 def _getVal4(a, curridx):
     return a[curridx[0], curridx[1], curridx[2], curridx[3]]
 
-@autojit
+@jit
 def _getVal5(a, curridx):
     return a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4]]
 
-@autojit
+@jit
 def _getVal6(a, curridx):
     return a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4], curridx[5]]
 
-@autojit
-def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, getVal):
+@jit
+def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, getVal, curridx):
     """
     To be called by ValueIndexes. An implementation using Numba of Neil's
     C code. This has the advantage of being able to handle any integer
     type passed.
     """
-    # our array that contains the current index in each of the dims
-    curridx = numpy.zeros_like(shape)
     done = False
     lastidx = ndim - 1
     maxuint32 = 4294967295 # 2^32 - 1
