@@ -398,25 +398,25 @@ class ValueIndexes(object):
             # of numba in that it has to know the dims of the array
             # it is working with
             if a.ndim == 1:
-                getVal = _getVal1
+                valndxFunc = _valndxFunc1
             elif a.ndim == 2:
-                getVal = _getVal2
+                valndxFunc = _valndxFunc2
             elif a.ndim == 3:
-                getVal = _getVal3
+                valndxFunc = _valndxFunc3
             elif a.ndim == 4:
-                getVal = _getVal4
+                valndxFunc = _valndxFunc4
             elif a.ndim == 5:
-                getVal = _getVal5
+                valndxFunc = _valndxFunc5
             elif a.ndim == 6:
-                getVal = _getVal6
+                valndxFunc = _valndxFunc6
             else:
                 raise ShapeMismatchError('Array can only have 6 or viewer dimensions')
 
             shape = numpy.array(a.shape, dtype=numpy.int)
             # our array that contains the current index in each of the dims
             curridx = numpy.zeros_like(shape)
-            _valndxFunc(a, shape, a.ndim, self.indexes, valrange[0], valrange[1], 
-                        self.valLU, currentIndex, getVal, curridx)
+            valndxFunc(a, shape, a.ndim, self.indexes, valrange[0], valrange[1], 
+                        self.valLU, currentIndex, curridx)
 
     def getIndexes(self, val):
         """
@@ -444,34 +444,8 @@ class ValueIndexes(object):
             ndx += (self.indexes[start:end, i], )
         return ndx
 
-# the following functions are alternative to creating
-# a tuple for indexing the array (which is slow from numba)
 @jit
-def _getVal1(a, curridx):
-    return a[curridx[0]]
-
-@jit
-def _getVal2(a, curridx):
-    return a[curridx[0], curridx[1]]
-
-@jit
-def _getVal3(a, curridx):
-    return a[curridx[0], curridx[1], curridx[2]]
-
-@jit
-def _getVal4(a, curridx):
-    return a[curridx[0], curridx[1], curridx[2], curridx[3]]
-
-@jit
-def _getVal5(a, curridx):
-    return a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4]]
-
-@jit
-def _getVal6(a, curridx):
-    return a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4], curridx[5]]
-
-@jit
-def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, getVal, curridx):
+def _valndxFunc1(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, curridx):
     """
     To be called by ValueIndexes. An implementation using Numba of Neil's
     C code. This has the advantage of being able to handle any integer
@@ -483,7 +457,7 @@ def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, ge
 
     while not done:
         # use the specially chosen function for indexing the array
-        arrVal = getVal(a, curridx)
+        arrVal = a[curridx[0]]
         
         found = False
         j = 0
@@ -511,6 +485,218 @@ def _valndxFunc(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, ge
 
         # if we are done we have run out of dims
         done = idx < 0
+
+@jit
+def _valndxFunc2(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, curridx):
+    """
+    To be called by ValueIndexes. An implementation using Numba of Neil's
+    C code. This has the advantage of being able to handle any integer
+    type passed.
+    """
+    done = False
+    lastidx = ndim - 1
+    maxuint32 = 4294967295 # 2^32 - 1
+
+    while not done:
+        # use the specially chosen function for indexing the array
+        arrVal = a[curridx[0], curridx[1]]
+        
+        found = False
+        j = 0
+        if arrVal >= minVal and arrVal <= maxVal:
+            j = valLU[arrVal - minVal]
+            found = j < maxuint32
+
+        if found:
+            m = currentIndex[j]
+            for i in range(ndim):
+                indexes[m, i] = curridx[i]
+            currentIndex[j] = m + 1        
+    
+        # code that updates curridx - incs the next dim
+        # if we have done all the elements in the current 
+        # dim
+        idx = lastidx
+        while idx >= 0:
+            curridx[idx] = curridx[idx] + 1
+            if curridx[idx] >= shape[idx]:
+                curridx[idx] = 0
+                idx -= 1
+            else:
+                break
+
+        # if we are done we have run out of dims
+        done = idx < 0
+
+@jit
+def _valndxFunc3(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, curridx):
+    """
+    To be called by ValueIndexes. An implementation using Numba of Neil's
+    C code. This has the advantage of being able to handle any integer
+    type passed.
+    """
+    done = False
+    lastidx = ndim - 1
+    maxuint32 = 4294967295 # 2^32 - 1
+
+    while not done:
+        # use the specially chosen function for indexing the array
+        arrVal = a[curridx[0], curridx[1], curridx[2]]
+        
+        found = False
+        j = 0
+        if arrVal >= minVal and arrVal <= maxVal:
+            j = valLU[arrVal - minVal]
+            found = j < maxuint32
+
+        if found:
+            m = currentIndex[j]
+            for i in range(ndim):
+                indexes[m, i] = curridx[i]
+            currentIndex[j] = m + 1        
+    
+        # code that updates curridx - incs the next dim
+        # if we have done all the elements in the current 
+        # dim
+        idx = lastidx
+        while idx >= 0:
+            curridx[idx] = curridx[idx] + 1
+            if curridx[idx] >= shape[idx]:
+                curridx[idx] = 0
+                idx -= 1
+            else:
+                break
+
+        # if we are done we have run out of dims
+        done = idx < 0
+
+@jit
+def _valndxFunc4(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, curridx):
+    """
+    To be called by ValueIndexes. An implementation using Numba of Neil's
+    C code. This has the advantage of being able to handle any integer
+    type passed.
+    """
+    done = False
+    lastidx = ndim - 1
+    maxuint32 = 4294967295 # 2^32 - 1
+
+    while not done:
+        # use the specially chosen function for indexing the array
+        arrVal = a[curridx[0], curridx[1], curridx[2], curridx[3]]
+        
+        found = False
+        j = 0
+        if arrVal >= minVal and arrVal <= maxVal:
+            j = valLU[arrVal - minVal]
+            found = j < maxuint32
+
+        if found:
+            m = currentIndex[j]
+            for i in range(ndim):
+                indexes[m, i] = curridx[i]
+            currentIndex[j] = m + 1        
+    
+        # code that updates curridx - incs the next dim
+        # if we have done all the elements in the current 
+        # dim
+        idx = lastidx
+        while idx >= 0:
+            curridx[idx] = curridx[idx] + 1
+            if curridx[idx] >= shape[idx]:
+                curridx[idx] = 0
+                idx -= 1
+            else:
+                break
+
+        # if we are done we have run out of dims
+        done = idx < 0
+
+@jit
+def _valndxFunc5(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, curridx):
+    """
+    To be called by ValueIndexes. An implementation using Numba of Neil's
+    C code. This has the advantage of being able to handle any integer
+    type passed.
+    """
+    done = False
+    lastidx = ndim - 1
+    maxuint32 = 4294967295 # 2^32 - 1
+
+    while not done:
+        # use the specially chosen function for indexing the array
+        arrVal = a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4]]
+        
+        found = False
+        j = 0
+        if arrVal >= minVal and arrVal <= maxVal:
+            j = valLU[arrVal - minVal]
+            found = j < maxuint32
+
+        if found:
+            m = currentIndex[j]
+            for i in range(ndim):
+                indexes[m, i] = curridx[i]
+            currentIndex[j] = m + 1        
+    
+        # code that updates curridx - incs the next dim
+        # if we have done all the elements in the current 
+        # dim
+        idx = lastidx
+        while idx >= 0:
+            curridx[idx] = curridx[idx] + 1
+            if curridx[idx] >= shape[idx]:
+                curridx[idx] = 0
+                idx -= 1
+            else:
+                break
+
+        # if we are done we have run out of dims
+        done = idx < 0
+
+@jit
+def _valndxFunc6(a, shape, ndim, indexes, minVal, maxVal, valLU, currentIndex, curridx):
+    """
+    To be called by ValueIndexes. An implementation using Numba of Neil's
+    C code. This has the advantage of being able to handle any integer
+    type passed.
+    """
+    done = False
+    lastidx = ndim - 1
+    maxuint32 = 4294967295 # 2^32 - 1
+
+    while not done:
+        # use the specially chosen function for indexing the array
+        arrVal = a[curridx[0], curridx[1], curridx[2], curridx[3], curridx[4], curridx[5]]
+        
+        found = False
+        j = 0
+        if arrVal >= minVal and arrVal <= maxVal:
+            j = valLU[arrVal - minVal]
+            found = j < maxuint32
+
+        if found:
+            m = currentIndex[j]
+            for i in range(ndim):
+                indexes[m, i] = curridx[i]
+            currentIndex[j] = m + 1        
+    
+        # code that updates curridx - incs the next dim
+        # if we have done all the elements in the current 
+        # dim
+        idx = lastidx
+        while idx >= 0:
+            curridx[idx] = curridx[idx] + 1
+            if curridx[idx] >= shape[idx]:
+                curridx[idx] = 0
+                idx -= 1
+            else:
+                break
+
+        # if we are done we have run out of dims
+        done = idx < 0
+
+
 
 def prewitt(img):
     """
