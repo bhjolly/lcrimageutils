@@ -344,9 +344,7 @@ class ValueIndexes(object):
         in the results, so that indexes for these cannot be determined. 
         
         """
-        integerTypes = [numpy.int8, numpy.uint8, numpy.int16, numpy.uint16,
-            numpy.int32, numpy.uint32]
-        if a.dtype not in integerTypes:
+        if not numpy.issubdtype(a.dtype, numpy.integer):
             raise NonIntTypeError("ValueIndexes only works on integer-like types. Array is %s"%a.dtype)
              
         if numpy.isscalar(nullVals):
@@ -389,9 +387,6 @@ class ValueIndexes(object):
             # into the indexes array. A given element is incremented whenever it finds
             # a new element of that value. 
             currentIndex = self.start.copy().astype(numpy.uint32)
-
-            if not numpy.issubdtype(a.dtype, numpy.integer):
-                raise NonIntTypeError('Array must be of integer type')
 
             # pass the appropriate function in for accessing the 
             # values in the array. This is to workaround limitation
