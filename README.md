@@ -40,9 +40,17 @@ Utilities for extracting stats from rasters for different areas.
 ```
 
 ### zones ###
-Utilities for extracting stats clumped images and extracting stats etc.
+Collection of routines that deals with zones (ie clumped images)
 ```
 #!python
 >>> from lcrimageutils import zones
 >>> help(zones)
 ```
+
+# Fortran 90 bindings for GDAL #
+
+A subset of the GDAL functions are available from Fortran 90. See the [module](https://bitbucket.org/chchrsc/gdalutils/src/657f6300e9a17f46454ddaf7df2a0e9408dec399/libimgf90/src/libimgf90mod.f90?at=default&fileviewer=file-view-default) source. Also see the [example](https://bitbucket.org/chchrsc/gdalutils/src/7da720c6a690ca36fc15f9a7144052f1980f08cf/libimgf90/test.f90?at=default&fileviewer=file-view-default).
+
+# Dr Shepherd's Imagine toolkit to GDAL compatibility layer #
+
+Code to assist those porting from Imagine C toolkit to GDAL. Look at the [header functions](https://bitbucket.org/chchrsc/gdalutils/src/7da720c6a690ca36fc15f9a7144052f1980f08cf/utils/src/common/?at=default).
