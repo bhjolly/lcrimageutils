@@ -5,6 +5,7 @@ set -e
 cd utils
 
 rm -f CMakeCache.txt
+rm -rf CMakeFiles
 
 cmake -D CMAKE_INSTALL_PREFIX=$1 \
 -D CMAKE_CXX_COMPILER="$LCRCXX" \
@@ -24,6 +25,7 @@ make install
 cd ../libimgf90
 
 rm -f CMakeCache.txt
+rm -rf CMakeFiles
 
 cmake -D CMAKE_INSTALL_PREFIX=$1 \
 -D CMAKE_CXX_COMPILER="$LCRCXX" \
@@ -40,4 +42,8 @@ cmake -D CMAKE_INSTALL_PREFIX=$1 \
 make
 make install
 
+cd ..
+
+cd pyutils
+python setup.py install --prefix=$1
 cd ..

@@ -27,10 +27,8 @@ set (PROJECT_SOURCE_DIR src)
 option(BUILD_SHARED_LIBS "Build with shared library" ON)
 
 set(GDALUTILS_COMMON_LIB_NAME gdalcommon)
-set(LIBIMGF90_BIN_NAME libimgf90)
 set(OGRDISSOLVE_BIN_NAME ogrdissolve)
 
-set(LIBIMGF90 FALSE CACHE BOOL "Build libimgf90")
 set(OGRDISSOLVE TRUE CACHE BOOL "Build ogrdissolve")
 
 set(GDAL_INCLUDE_DIR /usr/local/include CACHE PATH "Include PATH for GDAL")
@@ -107,12 +105,6 @@ install (TARGETS ${GDALUTILS_COMMON_LIB_NAME} DESTINATION lib)
 set(GDALCOMMON_INCLUDE_FILES ${PROJECT_SOURCE_DIR}/common/fparse.h ${PROJECT_SOURCE_DIR}/common/ginfo.h ${PROJECT_SOURCE_DIR}/common/glayer.h ${PROJECT_SOURCE_DIR}/common/gutils.h)
 install (FILES ${GDALCOMMON_INCLUDE_FILES} DESTINATION include)
 include_directories ("${PROJECT_SOURCE_DIR}/common")
-
-if(LIBIMGF90)
-	add_executable(${LIBIMGF90_BIN_NAME} ${PROJECT_SOURCE_DIR}/libimgf90/libimgf90.c ${PROJECT_SOURCE_DIR}/libimgf90/override-specs.h )
-	target_link_libraries (${LIBIMGF90_BIN_NAME} ${GDALUTILS_COMMON_LIB_NAME} ${GDAL_LIBRARIES} )
-	install (TARGETS ${LIBIMGF90_BIN_NAME} DESTINATION bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-endif(LIBIMGF90)
 
 if(OGRDISSOLVE)
 	add_executable(${OGRDISSOLVE_BIN_NAME} ${PROJECT_SOURCE_DIR}/ogrdissolve/ogrdissolve.cpp )
